@@ -208,10 +208,6 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]){
 #if defined(USE_MT_RAND)
         cfg.issaveseed=0;
 #endif
-        /** One must define the domain and properties */
-	if(cfg.vol==NULL || cfg.medianum==0){
-	    mexErrMsgTxt("You must define 'vol' and 'prop' field.");
-	}
 	/** One must also choose one of the GPUs */
 	if(!(activedev=mcx_list_gpu(&cfg,&gpuinfo))){
             mexErrMsgTxt("No active GPU device found");
@@ -236,7 +232,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]){
         cfg.srowmajor=0; // Matlab is always Col-major
         mcx_validateconfig(&cfg);
         char *errMsg;
-        if(mcx_validateconfig(&cfg, &errMsg)){
+        if(mcx_validateconfig(&cfg, &errMsg, seedbyte, detps, dimdetps)){
             mexErrMsgTxt(errMsg);
         }
 	

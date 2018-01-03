@@ -2040,6 +2040,10 @@ or (use inline domain definition)\n\
               exename,exename,exename,exename,exename);
 }
 
+static float _my_abs_temp(float x) {
+	return x >= 0 ? x : -x;
+}
+
 /**
  * @brief Validate all input fields, and warn incompatible inputs
  *
@@ -2047,21 +2051,30 @@ or (use inline domain definition)\n\
  *
  * @param[in,out] cfg: the simulation configuration structure
  * @param[in,out] errmsg: the simulation configuration structure
+ * @param[in] seedbyte: seed byte for replay functionality
+ * @param[in,out] detps: buffer to receive data from cfg.detphotons field
+ * @param[in] dimdetps: dimensions of the cfg.detphotons array
  * @return if valid, return 0, otherwise -1.
  */
 
-int mcx_validateconfig(Config *cfg, char **errmsg){
+int mcx_validateconfig(Config *cfg, char **errmsg, int seedbyte, float *detps, int *dimdetps){
     int i, gates, idx1d;
 
     if(!cfg->issrcfrom0){
         cfg->srcpos.x--;cfg->srcpos.y--;cfg->srcpos.z--; /*convert to C index, grid center*/
     }
+	/** One must define the domain and properties */
+	if (cfg->vol == NULL || cfg->medianum == 0) {
+		static const char * domainErr = "You must define 'vol' and 'prop' field.";
+		*errmsg = domainErr;
+		return -1;
+	}
     else if(cfg->tstart>cfg->tend || cfg->tstep==0.f){
         static const char * timeErr = "incorrect time gate settings";
         *errmsg = timeErr;
         return -1;
     }
-    else if(ABS(cfg->srcdir.x*cfg->srcdir.x+cfg->srcdir.y*cfg->srcdir.y+cfg->srcdir.z*cfg->srcdir.z - 1.f)>1e-5){
+    else if(_my_abs_temp(cfg->srcdir.x*cfg->srcdir.x+cfg->srcdir.y*cfg->srcdir.y+cfg->srcdir.z*cfg->srcdir.z - 1.f)>1e-5){
         static const char * unitaryErr = "field 'srcdir' must be a unitary vector";
         *errmsg = unitaryErr;
         return -1;
