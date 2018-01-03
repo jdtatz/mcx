@@ -2159,7 +2159,52 @@ int mcx_validateconfig(Config *cfg, char **errmsg){
     cfg->his.maxmedia=cfg->medianum-1; /*skip medium 0*/
     cfg->his.detnum=cfg->detnum;
     cfg->his.colcount=cfg->medianum+1+cfg->issaveexit*6; /*column count=maxmedia+2*/
-    // TODO
-    //mcx_replay_prep(cfg);
+
+    /* mcx_replay_prep
+     * Pre-computes the detected photon weight and time-of-fly from partial path input for replay
+     * When detected photons are replayed, this function recalculates the detected photon
+     * weight and their time-of-fly for the replay calculations.
+     */
+    if(cfg->seed==SEED_FROM_FILE && detps==NULL) {
+        static const char * replayErr = "you give cfg.seed for replay, but did not specify cfg.detphotons.\nPlease define it as the detphoton output from the baseline simulation";
+        *errmsg = replayErr;
+        return -1;
+    }
+    else if(detps!=NULL && cfg->seed==SEED_FROM_FILE) {
+        if (cfg->nphoton != dimdetps[1]){
+            static const char * colErr = "the column numbers of detphotons and seed do not match";
+            *errmsg = colErr;
+            return -1;
+        }
+        else if (seedbyte == 0){
+            static const char * seedErr = "the seed input is empty";
+            *errmsg = seedErr;
+            return -1;
+        }
+
+        cfg->replay.weight = (float *) malloc(cfg->nphoton * sizeof(float));
+        cfg->replay.tof = (float *) calloc(cfg->nphoton, sizeof(float));
+
+        cfg->nphoton = 0;
+        for (int i = 0; i < dimdetps[1]; i++) {
+            if (cfg->replaydet == 0 || cfg->replaydet == (int) (detps[i * dimdetps[0]])) {
+                if (i != cfg->nphoton)
+                    memcpy((char *) (cfg->replay.seed) + cfg->nphoton * seedbyte,
+                           (char *) (cfg->replay.seed) + i * seedbyte, seedbyte);
+                cfg->replay.weight[cfg->nphoton] = 1.f;
+                cfg->replay.tof[cfg->nphoton] = 0.f;
+                for (int j = 2; j < cfg->medianum + 1; j++) {
+                    cfg->replay.weight[cfg->nphoton] *= expf(
+                            -cfg->prop[j - 1].mua * detps[i * dimdetps[0] + j] * cfg->unitinmm);
+                    cfg->replay.tof[cfg->nphoton] +=
+                            detps[i * dimdetps[0] + j] * cfg->unitinmm * R_C0 * cfg->prop[j - 1].n;
+                }
+                if (cfg->replay.tof[cfg->nphoton] < cfg->tstart ||
+                    cfg->replay.tof[cfg->nphoton] > cfg->tend) /*need to consider -g*/
+                    continue;
+                cfg->nphoton++;
+            }
+        }
+    }
     return 0;
 }
