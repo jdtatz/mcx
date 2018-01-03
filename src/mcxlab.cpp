@@ -78,7 +78,6 @@
 #endif
 
 void mcx_set_field(const mxArray *root,const mxArray *item,int idx, Config *cfg);
-void mcx_validate_config(Config *cfg);
 void mcxlab_usage();
 
 float *detps=NULL;         //! buffer to receive data from cfg.detphotons field
@@ -234,7 +233,12 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]){
 	}
 	
 	/** Validate all input fields, and warn incompatible inputs */
-        mcx_validate_config(&cfg);
+        cfg.srowmajor=0; // Matlab is always Col-major
+        mcx_validateconfig(&cfg);
+        char *errMsg;
+        if(mcx_validateconfig(&cfg, &errMsg)){
+            mexErrMsgTxt(errMsg);
+        }
 	
 	/** Start multiple threads, one thread to run portion of the simulation on one CUDA GPU, all in parallel */
 #ifdef _OPENMP
@@ -703,105 +707,6 @@ void mcx_replay_prep(Config *cfg){
         }
 }
 
-/** 
- * @brief Validate all input fields, and warn incompatible inputs
- *
- * Perform self-checking and raise exceptions or warnings when input error is detected
- *
- * @param[in,out] cfg: the simulation configuration structure
- */
-
-void mcx_validate_config(Config *cfg){
-     int i,gates,idx1d;
-
-     if(!cfg->issrcfrom0){
-        cfg->srcpos.x--;cfg->srcpos.y--;cfg->srcpos.z--; /*convert to C index, grid center*/
-     }
-     if(cfg->tstart>cfg->tend || cfg->tstep==0.f){
-         mexErrMsgTxt("incorrect time gate settings");
-     }
-     if(ABS(cfg->srcdir.x*cfg->srcdir.x+cfg->srcdir.y*cfg->srcdir.y+cfg->srcdir.z*cfg->srcdir.z - 1.f)>1e-5)
-         mexErrMsgTxt("field 'srcdir' must be a unitary vector");
-     if(cfg->steps.x==0.f || cfg->steps.y==0.f || cfg->steps.z==0.f)
-         mexErrMsgTxt("field 'steps' can not have zero elements");
-     if(cfg->tend<=cfg->tstart)
-         mexErrMsgTxt("field 'tend' must be greater than field 'tstart'");
-     gates=(int)((cfg->tend-cfg->tstart)/cfg->tstep+0.5);
-     if(cfg->maxgate>gates)
-	 cfg->maxgate=gates;
-     if(cfg->sradius>0.f){
-     	cfg->crop0.x=MAX((int)(cfg->srcpos.x-cfg->sradius),0);
-     	cfg->crop0.y=MAX((int)(cfg->srcpos.y-cfg->sradius),0);
-     	cfg->crop0.z=MAX((int)(cfg->srcpos.z-cfg->sradius),0);
-     	cfg->crop1.x=MIN((int)(cfg->srcpos.x+cfg->sradius),cfg->dim.x-1);
-     	cfg->crop1.y=MIN((int)(cfg->srcpos.y+cfg->sradius),cfg->dim.y-1);
-     	cfg->crop1.z=MIN((int)(cfg->srcpos.z+cfg->sradius),cfg->dim.z-1);
-     }else if(cfg->sradius==0.f){
-     	memset(&(cfg->crop0),0,sizeof(uint3));
-     	memset(&(cfg->crop1),0,sizeof(uint3));
-     }else{
-        /*
-            if -R is followed by a negative radius, mcx uses crop0/crop1 to set the cachebox
-        */
-        if(!cfg->issrcfrom0){
-            cfg->crop0.x--;cfg->crop0.y--;cfg->crop0.z--;  /*convert to C index*/
-            cfg->crop1.x--;cfg->crop1.y--;cfg->crop1.z--;
-        }
-     }
-     if(cfg->medianum==0)
-        mexErrMsgTxt("you must define the 'prop' field in the input structure");
-     if(cfg->dim.x==0||cfg->dim.y==0||cfg->dim.z==0)
-        mexErrMsgTxt("the 'vol' field in the input structure can not be empty");
-     if(cfg->srctype==MCX_SRC_PATTERN && cfg->srcpattern==NULL)
-        mexErrMsgTxt("the 'srcpattern' field can not be empty when your 'srctype' is 'pattern'");
-     if(cfg->steps.x!=1.f && cfg->unitinmm==1.f)
-        cfg->unitinmm=cfg->steps.x;
-
-     if(cfg->medianum){
-        for(int i=0;i<cfg->medianum;i++)
-             if(cfg->prop[i].mus==0.f)
-	         cfg->prop[i].mus=EPS;
-     }
-     if(cfg->unitinmm!=1.f){
-        cfg->steps.x=cfg->unitinmm; cfg->steps.y=cfg->unitinmm; cfg->steps.z=cfg->unitinmm;
-        for(i=1;i<cfg->medianum;i++){
-		cfg->prop[i].mus*=cfg->unitinmm;
-		cfg->prop[i].mua*=cfg->unitinmm;
-        }
-     }
-     if(cfg->issavedet && cfg->detnum==0) 
-      	cfg->issavedet=0;
-     if(cfg->issavedet==0)
-         cfg->issaveexit=0;
-     if(cfg->seed<0 && cfg->seed!=SEED_FROM_FILE) cfg->seed=time(NULL);
-     if((cfg->outputtype==otJacobian || cfg->outputtype==otWP) && cfg->seed!=SEED_FROM_FILE)
-         mexErrMsgTxt("Jacobian output is only valid in the reply mode. Please define cfg.seed");     
-     for(i=0;i<cfg->detnum;i++){
-        if(!cfg->issrcfrom0){
-		cfg->detpos[i].x--;cfg->detpos[i].y--;cfg->detpos[i].z--;  /*convert to C index*/
-	}
-     }
-     if(1){
-        cfg->isrowmajor=0; /*matlab is always col-major*/
-	if(cfg->isrowmajor){
-		/*from here on, the array is always col-major*/
-		mcx_convertrow2col(&(cfg->vol), &(cfg->dim));
-		cfg->isrowmajor=0;
-	}
-	if(cfg->issavedet)
-		mcx_maskdet(cfg);
-        if(cfg->seed==SEED_FROM_FILE){
-            if(cfg->respin>1){
-	       cfg->respin=1;
-	       fprintf(stderr,"Warning: respin is disabled in the replay mode\n");
-	    }
-        }
-     }
-     cfg->his.maxmedia=cfg->medianum-1; /*skip medium 0*/
-     cfg->his.detnum=cfg->detnum;
-     cfg->his.colcount=cfg->medianum+1+cfg->issaveexit*6; /*column count=maxmedia+2*/
-     mcx_replay_prep(cfg);
-}
 
 /**
  * @brief Error reporting function in the mex function, equivallent to mcx_error in binary mode
