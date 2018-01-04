@@ -229,8 +229,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]){
 	}
 	
 	/** Validate all input fields, and warn incompatible inputs */
-        cfg.srowmajor=0; // Matlab is always Col-major
-        mcx_validateconfig(&cfg);
+        cfg.isrowmajor=0; // Matlab is always Col-major
         char *errMsg;
         if(mcx_validateconfig(&cfg, &errMsg, seedbyte, detps, dimdetps)){
             mexErrMsgTxt(errMsg);
