@@ -4,7 +4,7 @@
 #include "mcx_const.h"
 #include "mcx_ffi.h"
 
-#define SET_SCALAR_FIELD(NAME, TYPE) if(strcmp(dtype, #TYPE) != 0) {*err=typeErr; return -1;} cfg->NAME = *((TYPE*)value);
+#define SET_SCALAR_FIELD(NAME, TYPEVAL) if(ndim != 0 {*err=ndimErr; return -1;} cfg->NAME = TYPEVAL;
 
 #define SET_VEC3_FIELD(NAME, TYPE) if(strcmp(dtype, #TYPE) != 0) {*err=typeErr; return -1;} \
 if(ndim != 1){*err=ndimErr; return -1;} if(dims[0] != 3){*err=dimsErr; return -1;} \
@@ -20,8 +20,8 @@ if(ndim != 1){*err=ndimErr; return -1;} if(dims[0] != 3 && dims[0] != 4){*err=di
  cfg->NAME.x = ((TYPE*)value)[0]; cfg->NAME.y = ((TYPE*)value)[1]; cfg->NAME.z = ((TYPE*)value)[2]; \
  if(dims[0] == 4) {cfg->NAME.w = ((TYPE*)value)[3];}
 
-#define IF_SCALAR_FIELD(NAME, TYPE) if (strcmp(key, #NAME) == 0) {SET_SCALAR_FIELD(NAME, TYPE);}
-#define ELIF_SCALAR_FIELD(NAME, TYPE) else if (strcmp(key, #NAME) == 0) {SET_SCALAR_FIELD(NAME, TYPE);}
+#define IF_SCALAR_FIELD(NAME, TYPEVAL) if (strcmp(key, #NAME) == 0) {SET_SCALAR_FIELD(NAME, TYPEVAL);}
+#define ELIF_SCALAR_FIELD(NAME, TYPEVAL) else IF_SCALAR_FIELD(NAME, TYPEVAL)
 #define ELIF_VEC3_FIELD(NAME, TYPE) else if (strcmp(key, #NAME) == 0) {SET_VEC3_FIELD(NAME, TYPE);}
 #define ELIF_VEC4_FIELD(NAME, TYPE) else if (strcmp(key, #NAME) == 0) {SET_VEC4_FIELD(NAME, TYPE);}
 #define ELIF_VEC34_FIELD(NAME, TYPE) else if (strcmp(key, #NAME) == 0) {SET_VEC34_FIELD(NAME, TYPE);}
@@ -33,42 +33,73 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
     static const char *dimsErr = "Incorrect shape given.";
     static const char * strLenErr = "Too long of a string";
 
+	char charV;
+	int intV;
+	unsigned int uintV;
+	float floatV;
+	if (ndim == 0) {
+		if (strcmp(dtype, "char") == 0) {
+			charV = *((char*)value);
+			intV = (int)charV;
+			uintV = (unsigned int)charV;
+			floatV = (float)charV;
+		} else if (strcmp(dtype, "int") == 0) {
+			intV = *((int*)value);
+			charV = (char)intV;
+			uintV = (unsigned int)intV;
+			floatV = (float)intV;
+		} else if (strcmp(dtype, "uint") == 0) {
+			uintV = *((unsigned int*)value);
+			charV = (char)uintV;
+			intV = (int)uintV;
+			floatV = (float)uintV;
+		} else if (strcmp(dtype, "float") == 0) {
+			floatV = *((float*)value);
+			charV = (char)floatV;
+			intV = (int)floatV;
+			uintV = (unsigned int)floatV;
+		} else { 
+			*err = typeErr; 
+			return -1; 
+		}
+	}
+
     char *jsonshapes=NULL;
     /* // Unsure Why This Exists
     if(strcmp(name,"nphoton")==0 && cfg->replay.seed!=NULL)
         return 0;
     */
 
-    IF_SCALAR_FIELD(nphoton, int)
-    ELIF_SCALAR_FIELD(nblocksize, unsigned int)
-    ELIF_SCALAR_FIELD(nthread, unsigned int)
-    ELIF_SCALAR_FIELD(tstart, float)
-    ELIF_SCALAR_FIELD(tstep, float)
-    ELIF_SCALAR_FIELD(tend, float)
-    ELIF_SCALAR_FIELD(maxdetphoton, unsigned int)
-    ELIF_SCALAR_FIELD(sradius, float)
-    ELIF_SCALAR_FIELD(maxgate, unsigned int)
-    ELIF_SCALAR_FIELD(respin, unsigned int)
-    ELIF_SCALAR_FIELD(isreflect, char)
-    ELIF_SCALAR_FIELD(isref3, char)
-    ELIF_SCALAR_FIELD(isrefint, char)
-    ELIF_SCALAR_FIELD(isnormalized, char)
-    ELIF_SCALAR_FIELD(isgpuinfo, char)
-    ELIF_SCALAR_FIELD(issrcfrom0, char)
-    ELIF_SCALAR_FIELD(autopilot, char)
-    ELIF_SCALAR_FIELD(minenergy, float)
-    ELIF_SCALAR_FIELD(unitinmm, float)
-    ELIF_SCALAR_FIELD(reseedlimit, unsigned int)
-    ELIF_SCALAR_FIELD(printnum, unsigned int)
-    ELIF_SCALAR_FIELD(voidtime, int)
-    ELIF_SCALAR_FIELD(issaveseed, char)
-    ELIF_SCALAR_FIELD(issaveref, char)
-    ELIF_SCALAR_FIELD(issaveexit, char)
-    ELIF_SCALAR_FIELD(replaydet, int)
-    ELIF_SCALAR_FIELD(faststep, char)
-    ELIF_SCALAR_FIELD(maxvoidstep, int)
-    ELIF_SCALAR_FIELD(maxjumpdebug, unsigned int)
-    ELIF_SCALAR_FIELD(gscatter, unsigned int)
+    IF_SCALAR_FIELD(nphoton, intV)
+    ELIF_SCALAR_FIELD(nblocksize, uintV)
+    ELIF_SCALAR_FIELD(nthread, uintV)
+    ELIF_SCALAR_FIELD(tstart, floatV)
+    ELIF_SCALAR_FIELD(tstep, floatV)
+    ELIF_SCALAR_FIELD(tend, floatV)
+    ELIF_SCALAR_FIELD(maxdetphoton, uintV)
+    ELIF_SCALAR_FIELD(sradius, floatV)
+    ELIF_SCALAR_FIELD(maxgate, uintV)
+    ELIF_SCALAR_FIELD(respin, uintV)
+    ELIF_SCALAR_FIELD(isreflect, charV)
+    ELIF_SCALAR_FIELD(isref3, charV)
+    ELIF_SCALAR_FIELD(isrefint, charV)
+    ELIF_SCALAR_FIELD(isnormalized, charV)
+    ELIF_SCALAR_FIELD(isgpuinfo, charV)
+    ELIF_SCALAR_FIELD(issrcfrom0, charV)
+    ELIF_SCALAR_FIELD(autopilot, charV)
+    ELIF_SCALAR_FIELD(minenergy, floatV)
+    ELIF_SCALAR_FIELD(unitinmm, floatV)
+    ELIF_SCALAR_FIELD(reseedlimit, uintV)
+    ELIF_SCALAR_FIELD(printnum, uintV)
+    ELIF_SCALAR_FIELD(voidtime, intV)
+    ELIF_SCALAR_FIELD(issaveseed, charV)
+    ELIF_SCALAR_FIELD(issaveref, charV)
+    ELIF_SCALAR_FIELD(issaveexit, charV)
+    ELIF_SCALAR_FIELD(replaydet, intV)
+    ELIF_SCALAR_FIELD(faststep, charV)
+    ELIF_SCALAR_FIELD(maxvoidstep, intV)
+    ELIF_SCALAR_FIELD(maxjumpdebug, uintV)
+    ELIF_SCALAR_FIELD(gscatter, uintV)
     ELIF_VEC3_FIELD(srcpos, float)
     ELIF_VEC34_FIELD(srcdir, float)
     ELIF_VEC3_FIELD(steps, float)
@@ -77,27 +108,12 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
     ELIF_VEC4_FIELD(srcparam1, float)
     ELIF_VEC4_FIELD(srcparam2, float)
     else if (strcmp(key, "vol") == 0) {
-		if (ndim != 3) {
-			*err = ndimErr;
+		if (strcmp(dtype, "uint") != 0) {
+			*err = typeErr;
 			return -1;
 		}
-        cfg->mediabyte = 0;
-        size_t size = 4;
-        if (strcmp(dtype, "int8") == 0 || strcmp(dtype, "uint8") == 0) {
-            cfg->mediabyte = 1;
-            size = 1;
-        } else if (strcmp(dtype, "int16") == 0 || strcmp(dtype, "uint16") == 0){
-            cfg->mediabyte = 2;
-            size = 2;
-        } else if (strcmp(dtype, "int32") == 0 || strcmp(dtype, "uint32") == 0){
-            cfg->mediabyte = 4;
-        }else if(strcmp(dtype, "double") == 0){
-            cfg->mediabyte=8;
-            size = 8;
-        }else if(strcmp(dtype, "float") == 0){
-            cfg->mediabyte=14;
-		} else {
-			*err = typeErr;
+		if (ndim != 3) {
+			*err = ndimErr;
 			return -1;
 		}
         cfg->dim.x = dims[0];
@@ -105,29 +121,9 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
         cfg->dim.z = dims[2];
         int dimxyz=cfg->dim.x*cfg->dim.y*cfg->dim.z;
         if(cfg->vol) free(cfg->vol);
-        cfg->vol = malloc(dimxyz*sizeof(unsigned int));
-        if(cfg->mediabyte==4) {
-            memcpy(cfg->vol, value, dimxyz * size);
-        } else{
-            if(cfg->mediabyte==1){
-                unsigned char *data = value;
-                for(int i=0;i<dimxyz;i++)
-                    cfg->vol[i] = (unsigned int) data[i];
-            }else if(cfg->mediabyte==2){
-                unsigned short *data = value;
-                for(int i=0;i<dimxyz;i++)
-                    cfg->vol[i] = (unsigned int) data[i];
-            }else if(cfg->mediabyte==8){
-                double *data = value;
-                for(int i=0;i<dimxyz;i++)
-                    cfg->vol[i]= (unsigned int) data[i];
-            }else if(cfg->mediabyte==14){
-                float *data = value;
-                for(int i=0;i<dimxyz;i++)
-                    cfg->vol[i]= (unsigned int) data[i];
-                cfg->mediabyte=4;
-            }
-        }
+        cfg->vol = malloc(dimxyz * sizeof(unsigned int));
+		memcpy(cfg->vol, value, dimxyz * sizeof(unsigned int));
+		cfg->mediabyte = sizeof(unsigned int);
     } else if(strcmp(key, "prop") == 0){
         if(strcmp(dtype, "float") != 0){
             *err = typeErr;
