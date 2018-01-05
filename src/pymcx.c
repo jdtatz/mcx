@@ -162,7 +162,7 @@ PyObject *pymcx_run(PyObject *self, PyObject *args) {
 
     // detphoton
     fielddim[0] = cfg.medianum+1+cfg.issaveexit*6;
-    fielddim[0] = cfg.detectedcount;
+    fielddim[1] = cfg.detectedcount;
     PyArrayObject * detphoton = PyArray_EMPTY(2, fielddim, NPY_FLOAT32, 0);
     if(cfg.detectedcount>0) {
         detphoton = PyArray_SimpleNewFromData(2, fielddim, NPY_FLOAT32, cfg.exportdetected);

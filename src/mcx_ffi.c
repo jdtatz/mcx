@@ -40,7 +40,6 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, int dtype, i
         return 0;
     */
 
-
     IF_SCALAR_FIELD(nphoton, int, MCX_INT)
     ELIF_SCALAR_FIELD(nblocksize, unsigned, MCX_UINT)
     ELIF_SCALAR_FIELD(nthread, unsigned, MCX_UINT)
@@ -79,6 +78,10 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, int dtype, i
     ELIF_VEC4_FIELD(srcparam1, float, MCX_FLT32)
     ELIF_VEC4_FIELD(srcparam2, float, MCX_FLT32)
     else if (strcmp(key, "vol") == 0) {
+		if (ndim != 3) {
+			*err = ndimErr;
+			return -1;
+		}
         cfg->mediabyte = 0;
         size_t size = 4;
         if (dtype == MCX_INT8 || dtype == MCX_UINT8) {
@@ -94,12 +97,10 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, int dtype, i
             size = 8;
         }else if(dtype == MCX_FLT32){
             cfg->mediabyte=14;
-        }
-        if(cfg->mediabyte==0 || ndim != 3 ) {
-            static const char * volErr = "the 'vol' field must be a 3D integer array";
-            *err = volErr;
-            return -1;
-        }
+		} else {
+			*err = typeErr;
+			return -1;
+		}
         cfg->dim.x = dims[0];
         cfg->dim.y = dims[1];
         cfg->dim.z = dims[2];
@@ -330,4 +331,71 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, int dtype, i
         }
     }*/
     return 0;
+}
+
+
+void* mcx_get_field(Config *cfg, const char *key, int* dtype, int* ndim, const unsigned *dims, const char**err) {
+	if (strcmp(key, "exportfield") == 0) {
+		*dtype = MCX_FLT32;
+		*ndim = 4;
+		dims[0] = cfg->dim.x;
+		dims[1] = cfg->dim.y;
+		dims[2] = cfg->dim.z;
+		dims[3] = (cfg->tend - cfg->tstart) / cfg->tstep + 0.5;
+		return cfg->exportfield;
+	} else if (strcmp(key, "exportdetected") == 0) {
+		*dtype = MCX_FLT32;
+		*ndim = 2;
+		dims[0] = cfg->medianum + 1 + cfg->issaveexit * 6;
+		dims[1] = cfg->detectedcount;
+		return cfg->exportdetected;
+	}
+	else if (strcmpy(field, "seeddata") {
+		*dtype = MCX_UINT8;
+		*ndim = 2;
+		dims[0] = (cfg.issaveseed>0)*RAND_WORD_LEN*sizeof(float);
+		dims[1] = cfg.detectedcount;
+		return cfg->seeddata;
+	}
+	else if (strcmpy(field, "exportdebugdata") {
+		*dtype = MCX_FLT32;
+		*ndim = 2;
+		dims[0] = MCX_DEBUG_REC_LEN;
+		dims[1] = cfg.debugdatalen;
+		return cfg->exportdebugdata;
+	}
+	else if (strcmpy(field, "runtime") {
+		*dtype = MCX_UINT;
+		*ndim = 0;
+		return &cfg->runtime;
+	}
+	else if (strcmpy(field, "nphoton") {
+		*dtype = MCX_INT;
+		*ndim = 0;
+		return &cfg->nphoton;
+	}
+	else if (strcmpy(field, "energytot") {
+		*dtype = MCX_FLT64;
+		*ndim = 0;
+		return &cfg->energytot;
+	}
+	else if (strcmpy(field, "energyabs") {
+		*dtype = MCX_FLT64;
+		*ndim = 0;
+		return &cfg->energyabs;
+	}
+	else if (strcmpy(field, "energyabs") {
+		*dtype = MCX_FLT32;
+		*ndim = 0;
+		return &cfg->normalizer;
+	}
+	else if (strcmpy(field, "workload") {
+		*dtype = MCX_FLT32;
+		*ndim = 1;
+		dims[0] = MAX_DEVICE;
+		return &cfg->workload;
+	}
+	static const char * invalidErr = "Wanted key is not yet implemnted.";
+	*err = invalidErr;
+	return NULL;
 }
