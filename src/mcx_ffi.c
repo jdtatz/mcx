@@ -4,31 +4,30 @@
 #include "mcx_const.h"
 #include "mcx_ffi.h"
 
-#define SET_SCALAR_FIELD(NAME, TYP, DTYP) if(dtype != (DTYP)) {*err=typeErr; return -1;} cfg->NAME = *((TYP*)value);
+#define SET_SCALAR_FIELD(NAME, TYPE) if(strcmp(dtype, #TYPE) != 0) {*err=typeErr; return -1;} cfg->NAME = *((TYPE*)value);
 
-#define SET_VEC3_FIELD(NAME, TYP, DTYP) if(dtype != (DTYP)) {*err=typeErr; return -1;} \
+#define SET_VEC3_FIELD(NAME, TYPE) if(strcmp(dtype, #TYPE) != 0) {*err=typeErr; return -1;} \
 if(ndim != 1){*err=ndimErr; return -1;} if(dims[0] != 3){*err=dimsErr; return -1;} \
- cfg->NAME.x = ((TYP*)value)[0]; cfg->NAME.y = ((TYP*)value)[1]; cfg->NAME.z = ((TYP*)value)[2];
+ cfg->NAME.x = ((TYPE*)value)[0]; cfg->NAME.y = ((TYPE*)value)[1]; cfg->NAME.z = ((TYPE*)value)[2];
 
-#define SET_VEC4_FIELD(NAME, TYP, DTYP) if(dtype != (DTYP)) {*err=typeErr; return -1;} \
+#define SET_VEC4_FIELD(NAME, TYPE) if(strcmp(dtype, #TYPE) != 0) {*err=typeErr; return -1;} \
 if(ndim != 1){*err=ndimErr; return -1;} if(dims[0] != 4){*err=dimsErr; return -1;} \
- cfg->NAME.x = ((TYP*)value)[0]; cfg->NAME.y = ((TYP*)value)[1]; cfg->NAME.z = ((TYP*)value)[2]; \
- cfg->NAME.w = ((TYP*)value)[3];
+ cfg->NAME.x = ((TYPE*)value)[0]; cfg->NAME.y = ((TYPE*)value)[1]; cfg->NAME.z = ((TYPE*)value)[2]; \
+ cfg->NAME.w = ((TYPE*)value)[3];
 
-#define SET_VEC34_FIELD(NAME, TYP, DTYP) if(dtype != (DTYP)) {*err=typeErr; return -1;} \
+#define SET_VEC34_FIELD(NAME, TYPE) if(strcmp(dtype, #TYPE) != 0) {*err=typeErr; return -1;} \
 if(ndim != 1){*err=ndimErr; return -1;} if(dims[0] != 3 && dims[0] != 4){*err=dimsErr; return -1;} \
- cfg->NAME.x = ((TYP*)value)[0]; cfg->NAME.y = ((TYP*)value)[1]; cfg->NAME.z = ((TYP*)value)[2]; \
- if(dims[0] == 4) {cfg->NAME.w = ((TYP*)value)[3];}
+ cfg->NAME.x = ((TYPE*)value)[0]; cfg->NAME.y = ((TYPE*)value)[1]; cfg->NAME.z = ((TYPE*)value)[2]; \
+ if(dims[0] == 4) {cfg->NAME.w = ((TYPE*)value)[3];}
+
+#define IF_SCALAR_FIELD(NAME, TYPE) if (strcmp(key, #NAME) == 0) {SET_SCALAR_FIELD(NAME, TYPE);}
+#define ELIF_SCALAR_FIELD(NAME, TYPE) else if (strcmp(key, #NAME) == 0) {SET_SCALAR_FIELD(NAME, TYPE);}
+#define ELIF_VEC3_FIELD(NAME, TYPE) else if (strcmp(key, #NAME) == 0) {SET_VEC3_FIELD(NAME, TYPE);}
+#define ELIF_VEC4_FIELD(NAME, TYPE) else if (strcmp(key, #NAME) == 0) {SET_VEC4_FIELD(NAME, TYPE);}
+#define ELIF_VEC34_FIELD(NAME, TYPE) else if (strcmp(key, #NAME) == 0) {SET_VEC34_FIELD(NAME, TYPE);}
 
 
-#define IF_SCALAR_FIELD(NAME, TYP, DTYP) if (strcmp(key, #NAME) == 0) {SET_SCALAR_FIELD(NAME, TYP, DTYP);}
-#define ELIF_SCALAR_FIELD(NAME, TYP, DTYP) else if (strcmp(key, #NAME) == 0) {SET_SCALAR_FIELD(NAME, TYP, DTYP);}
-#define ELIF_VEC3_FIELD(NAME, TYP, DTYP) else if (strcmp(key, #NAME) == 0) {SET_VEC3_FIELD(NAME, TYP, DTYP);}
-#define ELIF_VEC4_FIELD(NAME, TYP, DTYP) else if (strcmp(key, #NAME) == 0) {SET_VEC4_FIELD(NAME, TYP, DTYP);}
-#define ELIF_VEC34_FIELD(NAME, TYP, DTYP) else if (strcmp(key, #NAME) == 0) {SET_VEC34_FIELD(NAME, TYP, DTYP);}
-
-
-int mcx_set_field(Config * cfg, const char *key, const void *value, int dtype, int ndim, const unsigned*dims, const char**err) {
+int mcx_set_field(Config * cfg, const char *key, const void *value, const char * dtype, int ndim, const unsigned*dims, const char**err) {
     static const char *typeErr = "Incorrect dtype given.";
     static const char *ndimErr = "Incorrect number of dimensions given.";
     static const char *dimsErr = "Incorrect shape given.";
@@ -40,43 +39,43 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, int dtype, i
         return 0;
     */
 
-    IF_SCALAR_FIELD(nphoton, int, MCX_INT)
-    ELIF_SCALAR_FIELD(nblocksize, unsigned, MCX_UINT)
-    ELIF_SCALAR_FIELD(nthread, unsigned, MCX_UINT)
-    ELIF_SCALAR_FIELD(tstart, float, MCX_FLT32)
-    ELIF_SCALAR_FIELD(tstep, float, MCX_FLT32)
-    ELIF_SCALAR_FIELD(tend, float, MCX_FLT32)
-    ELIF_SCALAR_FIELD(maxdetphoton, unsigned, MCX_UINT)
-    ELIF_SCALAR_FIELD(sradius, float, MCX_FLT32)
-    ELIF_SCALAR_FIELD(maxgate, unsigned, MCX_UINT)
-    ELIF_SCALAR_FIELD(respin, unsigned, MCX_UINT)
-    ELIF_SCALAR_FIELD(isreflect, char, MCX_CHR)
-    ELIF_SCALAR_FIELD(isref3, char, MCX_CHR)
-    ELIF_SCALAR_FIELD(isrefint, char, MCX_CHR)
-    ELIF_SCALAR_FIELD(isnormalized, char, MCX_CHR)
-    ELIF_SCALAR_FIELD(isgpuinfo, char, MCX_CHR)
-    ELIF_SCALAR_FIELD(issrcfrom0, char, MCX_CHR)
-    ELIF_SCALAR_FIELD(autopilot, char, MCX_CHR)
-    ELIF_SCALAR_FIELD(minenergy, float, MCX_FLT32)
-    ELIF_SCALAR_FIELD(unitinmm, float, MCX_FLT32)
-    ELIF_SCALAR_FIELD(reseedlimit, unsigned, MCX_UINT)
-    ELIF_SCALAR_FIELD(printnum, unsigned, MCX_UINT)
-    ELIF_SCALAR_FIELD(voidtime, int, MCX_INT)
-    ELIF_SCALAR_FIELD(issaveseed, char, MCX_CHR)
-    ELIF_SCALAR_FIELD(issaveref, char, MCX_CHR)
-    ELIF_SCALAR_FIELD(issaveexit, char, MCX_CHR)
-    ELIF_SCALAR_FIELD(replaydet, int, MCX_INT)
-    ELIF_SCALAR_FIELD(faststep, char, MCX_CHR)
-    ELIF_SCALAR_FIELD(maxvoidstep, int, MCX_INT)
-    ELIF_SCALAR_FIELD(maxjumpdebug, unsigned, MCX_UINT)
-    ELIF_SCALAR_FIELD(gscatter, unsigned, MCX_UINT)
-    ELIF_VEC3_FIELD(srcpos, float, MCX_FLT32)
-    ELIF_VEC34_FIELD(srcdir, float, MCX_FLT32)
-    ELIF_VEC3_FIELD(steps, float, MCX_FLT32)
-    ELIF_VEC3_FIELD(crop0, float, MCX_FLT32)
-    ELIF_VEC3_FIELD(crop1, float, MCX_FLT32)
-    ELIF_VEC4_FIELD(srcparam1, float, MCX_FLT32)
-    ELIF_VEC4_FIELD(srcparam2, float, MCX_FLT32)
+    IF_SCALAR_FIELD(nphoton, int)
+    ELIF_SCALAR_FIELD(nblocksize, unsigned int)
+    ELIF_SCALAR_FIELD(nthread, unsigned int)
+    ELIF_SCALAR_FIELD(tstart, float)
+    ELIF_SCALAR_FIELD(tstep, float)
+    ELIF_SCALAR_FIELD(tend, float)
+    ELIF_SCALAR_FIELD(maxdetphoton, unsigned int)
+    ELIF_SCALAR_FIELD(sradius, float)
+    ELIF_SCALAR_FIELD(maxgate, unsigned int)
+    ELIF_SCALAR_FIELD(respin, unsigned int)
+    ELIF_SCALAR_FIELD(isreflect, char)
+    ELIF_SCALAR_FIELD(isref3, char)
+    ELIF_SCALAR_FIELD(isrefint, char)
+    ELIF_SCALAR_FIELD(isnormalized, char)
+    ELIF_SCALAR_FIELD(isgpuinfo, char)
+    ELIF_SCALAR_FIELD(issrcfrom0, char)
+    ELIF_SCALAR_FIELD(autopilot, char)
+    ELIF_SCALAR_FIELD(minenergy, float)
+    ELIF_SCALAR_FIELD(unitinmm, float)
+    ELIF_SCALAR_FIELD(reseedlimit, unsigned int)
+    ELIF_SCALAR_FIELD(printnum, unsigned int)
+    ELIF_SCALAR_FIELD(voidtime, int)
+    ELIF_SCALAR_FIELD(issaveseed, char)
+    ELIF_SCALAR_FIELD(issaveref, char)
+    ELIF_SCALAR_FIELD(issaveexit, char)
+    ELIF_SCALAR_FIELD(replaydet, int)
+    ELIF_SCALAR_FIELD(faststep, char)
+    ELIF_SCALAR_FIELD(maxvoidstep, int)
+    ELIF_SCALAR_FIELD(maxjumpdebug, unsigned int)
+    ELIF_SCALAR_FIELD(gscatter, unsigned int)
+    ELIF_VEC3_FIELD(srcpos, float)
+    ELIF_VEC34_FIELD(srcdir, float)
+    ELIF_VEC3_FIELD(steps, float)
+    ELIF_VEC3_FIELD(crop0, float)
+    ELIF_VEC3_FIELD(crop1, float)
+    ELIF_VEC4_FIELD(srcparam1, float)
+    ELIF_VEC4_FIELD(srcparam2, float)
     else if (strcmp(key, "vol") == 0) {
 		if (ndim != 3) {
 			*err = ndimErr;
@@ -84,18 +83,18 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, int dtype, i
 		}
         cfg->mediabyte = 0;
         size_t size = 4;
-        if (dtype == MCX_INT8 || dtype == MCX_UINT8) {
+        if (strcmp(dtype, "int8") == 0 || strcmp(dtype, "uint8") == 0) {
             cfg->mediabyte = 1;
             size = 1;
-        } else if (dtype == MCX_INT16 || dtype == MCX_UINT16){
+        } else if (strcmp(dtype, "int16") == 0 || strcmp(dtype, "uint16") == 0){
             cfg->mediabyte = 2;
             size = 2;
-        } else if (dtype == MCX_INT32 || dtype == MCX_UINT32){
+        } else if (strcmp(dtype, "int32") == 0 || strcmp(dtype, "uint32") == 0){
             cfg->mediabyte = 4;
-        }else if(dtype == MCX_FLT64){
+        }else if(strcmp(dtype, "double") == 0){
             cfg->mediabyte=8;
             size = 8;
-        }else if(dtype == MCX_FLT32){
+        }else if(strcmp(dtype, "float") == 0){
             cfg->mediabyte=14;
 		} else {
 			*err = typeErr;
@@ -130,7 +129,7 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, int dtype, i
             }
         }
     } else if(strcmp(key, "prop") == 0){
-        if(dtype != MCX_FLT32){
+        if(strcmp(dtype, "float") != 0){
             *err = typeErr;
             return -1;
         } else if(ndim != 2){
@@ -150,7 +149,7 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, int dtype, i
             cfg->prop[i].n   = ((float*)value)[i*4+3];
         }
     } else if(strcmp(key, "detpos")==0){
-        if(dtype != MCX_FLT32){
+        if(strcmp(dtype, "float") != 0){
             *err = typeErr;
             return -1;
         } if(ndim != 2){
@@ -334,9 +333,15 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, int dtype, i
 }
 
 
-void* mcx_get_field(Config *cfg, const char *key, int* dtype, int* ndim, const unsigned *dims, const char**err) {
+void* mcx_get_field(Config *cfg, const char *key, char** dtype, int* ndim, const unsigned *dims, const char**err) {
+	static const char * intType = "int";
+	static const char * uintType = "unsigned int";
+	static const char * floatType = "float";
+	static const char * doubleType = "double";
+	static const char * uint8Type = "uint8";
+
 	if (strcmp(key, "exportfield") == 0) {
-		*dtype = MCX_FLT32;
+		*dtype = floatType;
 		*ndim = 4;
 		dims[0] = cfg->dim.x;
 		dims[1] = cfg->dim.y;
@@ -344,53 +349,45 @@ void* mcx_get_field(Config *cfg, const char *key, int* dtype, int* ndim, const u
 		dims[3] = (cfg->tend - cfg->tstart) / cfg->tstep + 0.5;
 		return cfg->exportfield;
 	} else if (strcmp(key, "exportdetected") == 0) {
-		*dtype = MCX_FLT32;
+		*dtype = floatType;
 		*ndim = 2;
 		dims[0] = cfg->medianum + 1 + cfg->issaveexit * 6;
 		dims[1] = cfg->detectedcount;
 		return cfg->exportdetected;
-	}
-	else if (strcmpy(field, "seeddata") {
-		*dtype = MCX_UINT8;
+	} else if (strcmpy(field, "seeddata") {
+		*dtype = uint8Type;
 		*ndim = 2;
 		dims[0] = (cfg.issaveseed>0)*RAND_WORD_LEN*sizeof(float);
 		dims[1] = cfg.detectedcount;
 		return cfg->seeddata;
-	}
-	else if (strcmpy(field, "exportdebugdata") {
-		*dtype = MCX_FLT32;
+	} else if (strcmpy(field, "exportdebugdata") {
+		*dtype = floatType;
 		*ndim = 2;
 		dims[0] = MCX_DEBUG_REC_LEN;
 		dims[1] = cfg.debugdatalen;
 		return cfg->exportdebugdata;
-	}
-	else if (strcmpy(field, "runtime") {
-		*dtype = MCX_UINT;
+	} else if (strcmpy(field, "runtime") {
+		*dtype = uintType;
 		*ndim = 0;
 		return &cfg->runtime;
-	}
-	else if (strcmpy(field, "nphoton") {
-		*dtype = MCX_INT;
+	} else if (strcmpy(field, "nphoton") {
+		*dtype = intType;
 		*ndim = 0;
 		return &cfg->nphoton;
-	}
-	else if (strcmpy(field, "energytot") {
-		*dtype = MCX_FLT64;
+	} else if (strcmpy(field, "energytot") {
+		*dtype = doubleType;
 		*ndim = 0;
 		return &cfg->energytot;
-	}
-	else if (strcmpy(field, "energyabs") {
-		*dtype = MCX_FLT64;
+	} else if (strcmpy(field, "energyabs") {
+		*dtype = doubleType;
 		*ndim = 0;
 		return &cfg->energyabs;
-	}
-	else if (strcmpy(field, "energyabs") {
-		*dtype = MCX_FLT32;
+	} else if (strcmpy(field, "energyabs") {
+		*dtype = floatType;
 		*ndim = 0;
 		return &cfg->normalizer;
-	}
-	else if (strcmpy(field, "workload") {
-		*dtype = MCX_FLT32;
+	} else if (strcmpy(field, "workload") {
+		*dtype = floatType;
 		*ndim = 1;
 		dims[0] = MAX_DEVICE;
 		return &cfg->workload;
