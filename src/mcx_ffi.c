@@ -95,6 +95,7 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
     ELIF_SCALAR_FIELD(issaveseed, charV)
     ELIF_SCALAR_FIELD(issaveref, charV)
     ELIF_SCALAR_FIELD(issaveexit, charV)
+	ELIF_SCALAR_FIELD(isrowmajor, charV)
     ELIF_SCALAR_FIELD(replaydet, intV)
     ELIF_SCALAR_FIELD(faststep, charV)
     ELIF_SCALAR_FIELD(maxvoidstep, intV)
@@ -326,6 +327,28 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
         }
     }*/
     return 0;
+}
+
+void initialize_output(Config *cfg, int nout) {
+	cfg->issave2pt = (nout >= 1);  /** save fluence rate to the 1st output if present */
+	cfg->issavedet = (nout >= 2);  /** save detected photon data to the 2nd output if present */
+	cfg->issaveseed = (nout >= 4); /** save detected photon seeds to the 4th output if present */
+#if defined(USE_MT_RAND)
+	cfg->issaveseed = 0;
+#endif
+	if (nout >= 1) {
+		int fieldlen = cfg->dim.x*cfg->dim.y*cfg->dim.z*(int)((cfg->tend - cfg->tstart) / cfg->tstep + 0.5);
+		cfg->exportfield = (float*)calloc(fieldlen, sizeof(float));
+	}
+	if (nout >= 2) {
+		cfg->exportdetected = (float*)malloc((cfg->medianum + 1 + cfg->issaveexit * 6)*cfg->maxdetphoton*sizeof(float));
+	}
+	if (nout >= 4) {
+		cfg->seeddata = malloc(cfg->maxdetphoton*sizeof(float)*RAND_WORD_LEN);
+	}
+	if (nout >= 5) {
+		cfg->exportdebugdata = (float*)malloc(cfg->maxjumpdebug*sizeof(float)*MCX_DEBUG_REC_LEN);
+	}
 }
 
 
