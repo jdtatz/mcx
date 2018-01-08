@@ -1324,12 +1324,13 @@ void  mcx_convertrow2col(unsigned int **vol, uint3 *dim){
      	return;
      }     
      newvol=(unsigned int*)malloc(sizeof(unsigned int)*dim->x*dim->y*dim->z);
+
      dimxy=dim->x*dim->y;
      dimyz=dim->y*dim->z;
      for(x=0;x<dim->x;x++)
       for(y=0;y<dim->y;y++)
        for(z=0;z<dim->z;z++){
-       		newvol[z*dimxy+y*dim->x+x]=*vol[x*dimyz+y*dim->z+z];
+       		newvol[z*dimxy+y*dim->x+x]=(*vol)[x*dimyz+y*dim->z+z];
        }
      free(*vol);
      *vol=newvol;
