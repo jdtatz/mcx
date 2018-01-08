@@ -1,5 +1,6 @@
 #include <string>
 #include "mcx_utils.h"
+#include "mcx_core.h"
 #include "mcx_shapes.h"
 #include "mcx_const.h"
 #include "mcx_ffi.h"
@@ -427,4 +428,41 @@ void* mcx_get_field(Config *cfg, const char *key, char** dtype, int* ndim, unsig
 	static const char * invalidErr = "Wanted key is not yet implemnted.";
 	*err = invalidErr;
 	return NULL;
+}
+
+int mcx_wrapped_run_simulation(Config *cfg, GPUInfo *gpuinfo, const char**err) {
+	static char * exceptionErr = "PyMCX Terminated due to an exception!";
+	int threadid = 0, errorflag = 0;
+#ifdef _OPENMP
+	omp_set_num_threads(activedev);
+#pragma omp parallel shared(errorflag)
+	{
+		threadid = omp_get_thread_num();
+#endif
+		/** Enclose all simulation calls inside a try/catch construct for exception handling */
+		try {
+			/** Call the main simulation host function to start the simulation */
+			mcx_run_simulation(cfg, gpuinfo);
+		}
+		catch (const char *err) {
+			printf("Error from thread (%d): %s\n", threadid, err);
+			errorflag++;
+		}
+		catch (const std::exception &err) {
+			printf("C++ Error from thread (%d): %s\n", threadid, err.what());
+			errorflag++;
+		}
+		catch (...) {
+			printf("Unknown Exception from thread (%d)", threadid);
+			errorflag++;
+		}
+#ifdef _OPENMP
+	}
+#endif
+	/** If error is detected, gracefully terminate the mex and return back to MATLAB */
+	if (errorflag){
+		*err = exceptionErr;
+		return -1;
+	}
+	return 0;
 }

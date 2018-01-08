@@ -2066,27 +2066,27 @@ int mcx_validateconfig(Config *cfg, char **errmsg, int seedbyte, float *detps, i
     }
 	/** One must define the domain and properties */
 	if (cfg->vol == NULL || cfg->medianum == 0) {
-		static const char * domainErr = "You must define 'vol' and 'prop' field.";
+		static char * domainErr = "You must define 'vol' and 'prop' field.";
 		*errmsg = domainErr;
 		return -1;
 	}
     else if(cfg->tstart>cfg->tend || cfg->tstep==0.f){
-        static const char * timeErr = "incorrect time gate settings";
+        static char * timeErr = "incorrect time gate settings";
         *errmsg = timeErr;
         return -1;
     }
     else if(_my_abs_temp(cfg->srcdir.x*cfg->srcdir.x+cfg->srcdir.y*cfg->srcdir.y+cfg->srcdir.z*cfg->srcdir.z - 1.f)>1e-5){
-        static const char * unitaryErr = "field 'srcdir' must be a unitary vector";
+        static char * unitaryErr = "field 'srcdir' must be a unitary vector";
         *errmsg = unitaryErr;
         return -1;
     }
     else if(cfg->steps.x==0.f || cfg->steps.y==0.f || cfg->steps.z==0.f){
-        static const char * stepsErr = "field 'steps' can not have zero elements";
+        static char * stepsErr = "field 'steps' can not have zero elements";
         *errmsg = stepsErr;
         return -1;
     }
     else if(cfg->tend<=cfg->tstart){
-        static const char * tendErr = "field 'tend' must be greater than field 'tstart'";
+        static char * tendErr = "field 'tend' must be greater than field 'tstart'";
         *errmsg = tendErr;
         return -1;
     }
@@ -2113,17 +2113,17 @@ int mcx_validateconfig(Config *cfg, char **errmsg, int seedbyte, float *detps, i
         }
     }
     if(cfg->medianum==0){
-        static const char * propErr = "you must define the 'prop' field in the input structure";
+        static char * propErr = "you must define the 'prop' field in the input structure";
         *errmsg = propErr;
         return -1;
     }
     if(cfg->dim.x==0||cfg->dim.y==0||cfg->dim.z==0){
-        static const char * volErr = "the 'vol' field in the input structure can not be empty";
+        static char * volErr = "the 'vol' field in the input structure can not be empty";
         *errmsg = volErr;
         return -1;
     }
     if(cfg->srctype==MCX_SRC_PATTERN && cfg->srcpattern==NULL){
-        static const char * srcErr = "the 'srcpattern' field can not be empty when your 'srctype' is 'pattern";
+        static char * srcErr = "the 'srcpattern' field can not be empty when your 'srctype' is 'pattern";
         *errmsg = srcErr;
         return -1;
     }
@@ -2148,7 +2148,7 @@ int mcx_validateconfig(Config *cfg, char **errmsg, int seedbyte, float *detps, i
         cfg->issaveexit=0;
     if(cfg->seed<0 && cfg->seed!=SEED_FROM_FILE) cfg->seed=time(NULL);
     if((cfg->outputtype==otJacobian || cfg->outputtype==otWP) && cfg->seed!=SEED_FROM_FILE){
-        static const char * replyErr = "Jacobian output is only valid in the reply mode. Please define cfg.seed";
+        static char * replyErr = "Jacobian output is only valid in the reply mode. Please define cfg.seed";
         *errmsg = replyErr;
         return -1;
     }
@@ -2180,18 +2180,18 @@ int mcx_validateconfig(Config *cfg, char **errmsg, int seedbyte, float *detps, i
      * weight and their time-of-fly for the replay calculations.
      */
     if(cfg->seed==SEED_FROM_FILE && detps==NULL) {
-        static const char * replayErr = "you give cfg.seed for replay, but did not specify cfg.detphotons.\nPlease define it as the detphoton output from the baseline simulation";
+        static char * replayErr = "you give cfg.seed for replay, but did not specify cfg.detphotons.\nPlease define it as the detphoton output from the baseline simulation";
         *errmsg = replayErr;
         return -1;
     }
     else if(detps!=NULL && cfg->seed==SEED_FROM_FILE) {
         if (cfg->nphoton != dimdetps[1]){
-            static const char * colErr = "the column numbers of detphotons and seed do not match";
+            static char * colErr = "the column numbers of detphotons and seed do not match";
             *errmsg = colErr;
             return -1;
         }
         else if (seedbyte == 0){
-            static const char * seedErr = "the seed input is empty";
+            static char * seedErr = "the seed input is empty";
             *errmsg = seedErr;
             return -1;
         }

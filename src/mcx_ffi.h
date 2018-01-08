@@ -15,6 +15,8 @@ MCX_EXPORT void* mcx_get_field(Config *cfg, const char *key, char** dtype, int* 
 
 MCX_EXPORT void initialize_output(Config *cfg, int nout);
 
+MCX_EXPORT int mcx_wrapped_run_simulation(Config *cfg, GPUInfo *gpu, const char**err);
+
 #ifdef	__cplusplus
 }
 #endif
