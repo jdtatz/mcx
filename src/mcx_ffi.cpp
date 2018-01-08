@@ -4,7 +4,21 @@
 #include "mcx_const.h"
 #include "mcx_ffi.h"
 
-#define SET_SCALAR_FIELD(NAME, TYPEVAL) if(ndim != 0 {*err=ndimErr; return -1;} cfg->NAME = TYPEVAL;
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
+#if defined(USE_XORSHIFT128P_RAND)
+#define RAND_WORD_LEN 4
+#elif defined(USE_POSIX_RAND)
+#define RAND_WORD_LEN 4
+#elif defined(USE_MT_RAND)
+#define RAND_WORD_LEN 0
+#else
+#define RAND_WORD_LEN 5
+#endif
+
+#define SET_SCALAR_FIELD(NAME, TYPEVAL) if(ndim != 0) {*err=ndimErr; return -1;} cfg->NAME = TYPEVAL;
 
 #define SET_VEC3_FIELD(NAME, TYPE) if(strcmp(dtype, #TYPE) != 0) {*err=typeErr; return -1;} \
 if(ndim != 1){*err=ndimErr; return -1;} if(dims[0] != 3){*err=dimsErr; return -1;} \
@@ -122,7 +136,7 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
         cfg->dim.z = dims[2];
         int dimxyz=cfg->dim.x*cfg->dim.y*cfg->dim.z;
         if(cfg->vol) free(cfg->vol);
-        cfg->vol = malloc(dimxyz * sizeof(unsigned int));
+        cfg->vol = (unsigned int*)malloc(dimxyz * sizeof(unsigned int));
 		memcpy(cfg->vol, value, dimxyz * sizeof(unsigned int));
 		cfg->mediabyte = sizeof(unsigned int);
     } else if(strcmp(key, "prop") == 0){
@@ -138,7 +152,7 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
         }
         cfg->medianum = dims[0];
         if(cfg->prop) free(cfg->prop);
-        cfg->prop = malloc(cfg->medianum*sizeof(Medium));
+        cfg->prop = (Medium*)malloc(cfg->medianum*sizeof(Medium));
         for(int i=0;i<cfg->medianum;i++){
             cfg->prop[i].mua = ((float*)value)[i*4  ];
             cfg->prop[i].mus = ((float*)value)[i*4+1];
@@ -156,15 +170,14 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
             *err = dimsErr;
             return -1;
         }
-        float *val = value;
         cfg->detnum=dims[0];
         if(cfg->detpos) free(cfg->detpos);
-        cfg->detpos = malloc(cfg->detnum*sizeof(float4));
+        cfg->detpos = (float4*)malloc(cfg->detnum*sizeof(float4));
         for(int i=0; i < cfg->detnum; i++){
-            cfg->detpos[i].x = val[i*4];
-            cfg->detpos[i].y = val[i*4+1];
-            cfg->detpos[i].z = val[i*4+2];
-            cfg->detpos[i].w = val[i*4+3];
+            cfg->detpos[i].x = ((float *)value)[i*4];
+            cfg->detpos[i].y = ((float *)value)[i*4+1];
+            cfg->detpos[i].z = ((float *)value)[i*4+2];
+            cfg->detpos[i].w = ((float *)value)[i*4+3];
         }
     }
     //TODO: the rest of the options
@@ -352,12 +365,12 @@ void initialize_output(Config *cfg, int nout) {
 }
 
 
-void* mcx_get_field(Config *cfg, const char *key, char** dtype, int* ndim, const unsigned *dims, const char**err) {
-	static const char * intType = "int";
-	static const char * uintType = "unsigned int";
-	static const char * floatType = "float";
-	static const char * doubleType = "double";
-	static const char * uint8Type = "uint8";
+void* mcx_get_field(Config *cfg, const char *key, char** dtype, int* ndim, unsigned *dims, const char**err) {
+	static char * intType = "int";
+	static char * uintType = "unsigned int";
+	static char * floatType = "float";
+	static char * doubleType = "double";
+	static char * uint8Type = "uint8";
 
 	if (strcmp(key, "exportfield") == 0) {
 		*dtype = floatType;
@@ -373,39 +386,39 @@ void* mcx_get_field(Config *cfg, const char *key, char** dtype, int* ndim, const
 		dims[0] = cfg->medianum + 1 + cfg->issaveexit * 6;
 		dims[1] = cfg->detectedcount;
 		return cfg->exportdetected;
-	} else if (strcmpy(field, "seeddata") {
+	} else if (strcmp(key, "seeddata")) {
 		*dtype = uint8Type;
 		*ndim = 2;
-		dims[0] = (cfg.issaveseed>0)*RAND_WORD_LEN*sizeof(float);
-		dims[1] = cfg.detectedcount;
+		dims[0] = (cfg->issaveseed>0)*RAND_WORD_LEN*sizeof(float);
+		dims[1] = cfg->detectedcount;
 		return cfg->seeddata;
-	} else if (strcmpy(field, "exportdebugdata") {
+	} else if (strcmp(key, "exportdebugdata")) {
 		*dtype = floatType;
 		*ndim = 2;
 		dims[0] = MCX_DEBUG_REC_LEN;
-		dims[1] = cfg.debugdatalen;
+		dims[1] = cfg->debugdatalen;
 		return cfg->exportdebugdata;
-	} else if (strcmpy(field, "runtime") {
+	} else if (strcmp(key, "runtime")) {
 		*dtype = uintType;
 		*ndim = 0;
 		return &cfg->runtime;
-	} else if (strcmpy(field, "nphoton") {
+	} else if (strcmp(key, "nphoton")) {
 		*dtype = intType;
 		*ndim = 0;
 		return &cfg->nphoton;
-	} else if (strcmpy(field, "energytot") {
+	} else if (strcmp(key, "energytot")) {
 		*dtype = doubleType;
 		*ndim = 0;
 		return &cfg->energytot;
-	} else if (strcmpy(field, "energyabs") {
+	} else if (strcmp(key, "energyabs")) {
 		*dtype = doubleType;
 		*ndim = 0;
 		return &cfg->energyabs;
-	} else if (strcmpy(field, "energyabs") {
+	} else if (strcmp(key, "energyabs")) {
 		*dtype = floatType;
 		*ndim = 0;
 		return &cfg->normalizer;
-	} else if (strcmpy(field, "workload") {
+	} else if (strcmp(key, "workload")) {
 		*dtype = floatType;
 		*ndim = 1;
 		dims[0] = MAX_DEVICE;

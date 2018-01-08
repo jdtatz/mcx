@@ -7,13 +7,13 @@
 extern "C" {
 #endif
 
-int SIZE_OF_CONFIG = sizeof(Config);
+MCX_EXPORT int SIZE_OF_CONFIG = sizeof(Config);
 
-int mcx_set_field(Config *cfg, const char *key, const void *value, const char * dtype, int ndim, const unsigned*dims, const char**err);
+MCX_EXPORT int mcx_set_field(Config *cfg, const char *key, const void *value, const char * dtype, int ndim, const unsigned*dims, const char**err);
 
-void* mcx_get_field(Config *cfg, const char *key, char** dtype, int* ndim, const unsigned* dims, const char**err);
+MCX_EXPORT void* mcx_get_field(Config *cfg, const char *key, char** dtype, int* ndim, unsigned* dims, const char**err);
 
-void initialize_output(Config *cfg, int nout);
+MCX_EXPORT void initialize_output(Config *cfg, int nout);
 
 #ifdef	__cplusplus
 }

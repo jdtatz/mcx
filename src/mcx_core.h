@@ -144,8 +144,8 @@ typedef struct  __align__(16) KernelParams {
   unsigned int is2d;                 /**< is the domain a 2D slice? */
 }MCXParam;
 
-void mcx_run_simulation(Config *cfg,GPUInfo *gpu);
-int  mcx_list_gpu(Config *cfg, GPUInfo **info);
+MCX_EXPORT void mcx_run_simulation(Config *cfg,GPUInfo *gpu);
+MCX_EXPORT int  mcx_list_gpu(Config *cfg, GPUInfo **info);
 
 #ifdef  __cplusplus
 }
