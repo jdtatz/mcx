@@ -21,6 +21,7 @@ MEX=mex
 AR=$(CC)
 
 BINARY=mcx
+SLIB=mcx.so
 OUTPUT_DIR=$(MCXDIR)/bin
 
 DOXY       := doxygen
@@ -60,7 +61,7 @@ CPPOPT=-g -Wall -std=c99 # -DUSE_OS_TIMER
 OBJSUFFIX=.o
 EXESUFFIX=
 
-FILES=mcx_core mcx_utils mcx_shapes tictoc mcextreme cjson/cJSON
+FILES=mcx_core mcx_utils mcx_shapes mcx_ffi tictoc mcextreme cjson/cJSON
 
 ifeq ($(findstring CYGWIN,$(PLATFORM)), CYGWIN)
   CC=nvcc
@@ -84,8 +85,8 @@ else ifeq ($(findstring Darwin,$(PLATFORM)), Darwin)
   CUDA_STATIC=--cudart static
   CPPOPT+=$(OMP)
 else
-  CPPOPT+=$(OMP)
-  CUCCOPT+=-Xcompiler $(OMP)
+  CPPOPT+=$(OMP) $(DLLFLAG)
+  CUCCOPT+=-Xcompiler $(OMP) --compiler-options "$(DLLFLAG)"
   ifeq ($(findstring x86_64,$(ARCH)), x86_64)
      CPPOPT +=-m64
      CUCCOPT +=-m64
@@ -178,7 +179,7 @@ doc: makedocdir
 OBJS      := $(addsuffix $(OBJSUFFIX), $(FILES))
 
 all xor fast log logfast racing xoratomic logatomic xorbox logbox debugxor debuglog \
- det detbox fermi mex oct mexbox octbox fermimex fermioct: cudasdk $(OUTPUT_DIR)/$(BINARY)
+ det detbox fermi mex oct mexbox octbox fermimex fermioct: cudasdk $(OUTPUT_DIR)/$(BINARY) $(OUTPUT_DIR)/mcx.so
 
 makedirs:
 	@if test ! -d $(OUTPUT_DIR); then $(MKDIR) $(OUTPUT_DIR); fi
@@ -189,6 +190,10 @@ makedocdir:
 $(OUTPUT_DIR)/$(BINARY): makedirs $(OBJS)
 $(OUTPUT_DIR)/$(BINARY): $(OBJS)
 	$(AR) $(OBJS) $(OUTPUTFLAG) $(OUTPUT_DIR)/$(BINARY) $(LINKOPT) $(USERLINKOPT)
+
+$(OUTPUT_DIR)/$(SLIB): makedirs $(OBJS)
+$(OUTPUT_DIR)/$(SLIB): $(OBJS)
+	$(AR) -shared $(OBJS) $(OUTPUTFLAG) $(OUTPUT_DIR)/$(SLIB) $(LINKOPT) $(USERLINKOPT)
 
 %$(OBJSUFFIX): %.c
 	$(CC) $(INCLUDEDIRS) $(CPPOPT) -c -o $@  $<
@@ -204,4 +209,3 @@ cudasdk:
 	fi
 
 .DEFAULT_GOAL := all
-

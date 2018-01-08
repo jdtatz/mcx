@@ -6,8 +6,8 @@ if platform.system() == 'Windows':
     _lib = ctypes.WinDLL('mcx.dll')
     _libc = ctypes.cdll.msvcrt
 else:
-    _lib = ctypes.CDLL('mcx.so')
-    _libc = CDLL("libc.so.6")
+    _lib = ctypes.CDLL('./mcx.so')
+    _libc = ctypes.CDLL("libc.so.6")
 
 _malloc = _libc.malloc
 _malloc.argtypes = [ctypes.c_size_t]

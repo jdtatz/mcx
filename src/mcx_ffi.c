@@ -1,4 +1,4 @@
-#include <string>
+#include <string.h>
 #include "mcx_utils.h"
 #include "mcx_core.h"
 #include "mcx_shapes.h"
@@ -73,9 +73,9 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
 			charV = (char)floatV;
 			intV = (int)floatV;
 			uintV = (unsigned int)floatV;
-		} else { 
-			*err = typeErr; 
-			return -1; 
+		} else {
+			*err = typeErr;
+			return -1;
 		}
 	}
 
@@ -110,7 +110,7 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
     ELIF_SCALAR_FIELD(issaveseed, charV)
     ELIF_SCALAR_FIELD(issaveref, charV)
     ELIF_SCALAR_FIELD(issaveexit, charV)
-	ELIF_SCALAR_FIELD(isrowmajor, charV)
+    ELIF_SCALAR_FIELD(isrowmajor, charV)
     ELIF_SCALAR_FIELD(replaydet, intV)
     ELIF_SCALAR_FIELD(faststep, charV)
     ELIF_SCALAR_FIELD(maxvoidstep, intV)
@@ -138,8 +138,8 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
         int dimxyz=cfg->dim.x*cfg->dim.y*cfg->dim.z;
         if(cfg->vol) free(cfg->vol);
         cfg->vol = (unsigned int*)malloc(dimxyz * sizeof(unsigned int));
-		memcpy(cfg->vol, value, dimxyz * sizeof(unsigned int));
-		cfg->mediabyte = sizeof(unsigned int);
+        memcpy(cfg->vol, value, dimxyz * sizeof(unsigned int));
+        cfg->mediabyte = sizeof(unsigned int);
     } else if(strcmp(key, "prop") == 0){
         if(strcmp(dtype, "float") != 0){
             *err = typeErr;
@@ -434,16 +434,16 @@ int mcx_wrapped_run_simulation(Config *cfg, GPUInfo *gpuinfo, const char**err) {
 	static char * exceptionErr = "PyMCX Terminated due to an exception!";
 	int threadid = 0, errorflag = 0;
 #ifdef _OPENMP
-	omp_set_num_threads(activedev);
+	omp_set_num_threads(1);
 #pragma omp parallel shared(errorflag)
 	{
 		threadid = omp_get_thread_num();
 #endif
 		/** Enclose all simulation calls inside a try/catch construct for exception handling */
-		try {
+		//try {
 			/** Call the main simulation host function to start the simulation */
 			mcx_run_simulation(cfg, gpuinfo);
-		}
+		/*}
 		catch (const char *err) {
 			printf("Error from thread (%d): %s\n", threadid, err);
 			errorflag++;
@@ -455,7 +455,7 @@ int mcx_wrapped_run_simulation(Config *cfg, GPUInfo *gpuinfo, const char**err) {
 		catch (...) {
 			printf("Unknown Exception from thread (%d)", threadid);
 			errorflag++;
-		}
+		}*/
 #ifdef _OPENMP
 	}
 #endif

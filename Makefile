@@ -5,13 +5,16 @@
 ############################################################
 
 PKGNAME=mcx
+LIBNAME=mcx.so
 VERSION=2017.7
 SOURCE=src
 GUI=mcxstudio
 
-all: bin/$(PKGNAME) bin/$(GUI) deb rpm
+all: bin/$(PKGNAME) bin/$(LIBNAME) bin/$(GUI) deb rpm
 
 bin/$(PKGNAME):
+	-$(MAKE) -C $(SOURCE) static
+bin/$(LIBNAME):
 	-$(MAKE) -C $(SOURCE) static
 bin/$(GUI):
 	-$(MAKE) -C $(GUI)
@@ -31,4 +34,3 @@ clean:
 	-rm -rf debian rpmroot pkg.info $(PKGNAME)-$(VERSION).deb $(PKGNAME)-$(VERSION)*.rpm
 
 .DEFAULT_GOAL := bin/$(PKGNAME)
-
