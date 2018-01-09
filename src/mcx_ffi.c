@@ -415,7 +415,7 @@ void initialize_output(Config *cfg, int nout) {
 
 void* mcx_get_field(Config *cfg, const char *key, char** dtype, int* ndim, unsigned *dims, const char**err) {
 	static char * intType = "int";
-	static char * uintType = "unsigned int";
+	static char * uintType = "uint";
 	static char * floatType = "float";
 	static char * doubleType = "double";
 	static char * uint8Type = "uint8";
