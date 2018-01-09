@@ -119,16 +119,15 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
     ELIF_VEC3_FIELD(srcpos, float)
     ELIF_VEC34_FIELD(srcdir, float)
     ELIF_VEC3_FIELD(steps, float)
-    ELIF_VEC3_FIELD(crop0, float)
-    ELIF_VEC3_FIELD(crop1, float)
+    ELIF_VEC3_FIELD(crop0, unsigned)
+    ELIF_VEC3_FIELD(crop1, unsigned)
     ELIF_VEC4_FIELD(srcparam1, float)
     ELIF_VEC4_FIELD(srcparam2, float)
     else if (strcmp(key, "vol") == 0) {
 		if (strcmp(dtype, "uint") != 0) {
 			*err = typeErr;
 			return -1;
-		}
-		if (ndim != 3) {
+		} else if (ndim != 3) {
 			*err = ndimErr;
 			return -1;
 		}
@@ -154,7 +153,7 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
         cfg->medianum = dims[0];
         if(cfg->prop) free(cfg->prop);
         cfg->prop = (Medium*)malloc(cfg->medianum*sizeof(Medium));
-        for(int i=0;i<cfg->medianum;i++){
+        for(unsigned i=0;i<cfg->medianum;i++){
             cfg->prop[i].mua = ((float*)value)[i*4  ];
             cfg->prop[i].mus = ((float*)value)[i*4+1];
             cfg->prop[i].g   = ((float*)value)[i*4+2];
@@ -164,7 +163,7 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
         if(strcmp(dtype, "float") != 0){
             *err = typeErr;
             return -1;
-        } if(ndim != 2){
+        } else if(ndim != 2){
             *err = ndimErr;
             return -1;
         } else if(dims[0] <= 0 || dims[1] != 4){
@@ -174,172 +173,172 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
         cfg->detnum=dims[0];
         if(cfg->detpos) free(cfg->detpos);
         cfg->detpos = (float4*)malloc(cfg->detnum*sizeof(float4));
-        for(int i=0; i < cfg->detnum; i++){
+        for(unsigned i=0; i < cfg->detnum; i++){
             cfg->detpos[i].x = ((float *)value)[i*4];
             cfg->detpos[i].y = ((float *)value)[i*4+1];
             cfg->detpos[i].z = ((float *)value)[i*4+2];
             cfg->detpos[i].w = ((float *)value)[i*4+3];
         }
-    }
-    //TODO: the rest of the options
-    /*else if(strcmp(key,"session")==0) {
-        if(dtype != MCX_STR){
+    } else if(strcmp(key,"session")==0) {
+        if(strcmp(dtype, "string") != 0){
             *err = typeErr;
             return -1;
-        } else if(dims[0] > MAX_SESSION_LENGTH){
+        } else if(dims[0] >= MAX_SESSION_LENGTH || dims[0] == 0){
             *err = strLenErr;
             return -1;
         }
         strncpy(cfg->session, value, MAX_SESSION_LENGTH);
-        cfg->session[MAX_SESSION_LENGTH] = '\0';
+        cfg->session[MAX_SESSION_LENGTH-1] = '\0';
     }else if(strcmp(key,"srctype")==0){
-        if(dtype != MCX_STR){
+        if(strcmp(dtype, "string") != 0){
             *err = typeErr;
             return -1;
-        } else if(dims[0] > MAX_SESSION_LENGTH){
+        } else if(dims[0] == 0){
             *err = strLenErr;
             return -1;
         }
-
         const char *srctypeid[]={"pencil","isotropic","cone","gaussian","planar","pattern","fourier","arcsine","disk","fourierx","fourierx2d","zgaussian","line","slit","pencilarray",""};
-        char strtypestr[MAX_SESSION_LENGTH]={'\0'};
-
-        if(!mxIsChar(item) || len==0)
-            mexErrMsgTxt("the 'srctype' field must be a non-empty string");
-        if(len>MAX_SESSION_LENGTH)
-            mexErrMsgTxt("the 'srctype' field is too long");
-        int status = mxGetString(item, strtypestr, MAX_SESSION_LENGTH);
-        if (status != 0)
-            mexWarnMsgTxt("not enough space. string is truncated.");
-        cfg->srctype=mcx_keylookup(strtypestr,srctypeid);
-        if(cfg->srctype==-1)
-            mexErrMsgTxt("the specified source type is not supported");
-        printf("mcx.srctype='%s';\n",strtypestr);
-    }else if(strcmp(key,"outputtype")==0){
-        int len=mxGetNumberOfElements(item);
+        int srctype = mcx_keylookup((char*)value,srctypeid);
+		static char * srcTypErr = "the specified source type is not supported";
+        if(srctype == -1){
+            *err = srcTypErr;
+            return -1;
+        }
+        cfg->srctype = srctype;
+    } else if(strcmp(key,"outputtype")==0) {
+        if(strcmp(dtype, "string") != 0){
+            *err = typeErr;
+            return -1;
+        } else if(dims[0] == 0){
+            *err = strLenErr;
+            return -1;
+        }
         const char *outputtype[]={"flux","fluence","energy","jacobian","nscat","wl","wp",""};
-        char outputstr[MAX_SESSION_LENGTH]={'\0'};
-
-        if(!mxIsChar(item) || len==0)
-            mexErrMsgTxt("the 'outputtype' field must be a non-empty string");
-        if(len>MAX_SESSION_LENGTH)
-            mexErrMsgTxt("the 'outputtype' field is too long");
-        int status = mxGetString(item, outputstr, MAX_SESSION_LENGTH);
-        if (status != 0)
-            mexWarnMsgTxt("not enough space. string is truncated.");
-        cfg->outputtype=mcx_keylookup(outputstr,outputtype);
-        if(cfg->outputtype==5 || cfg->outputtype==6) // map wl to jacobian, wp to nscat
-            cfg->outputtype-=2;
-        if(cfg->outputtype==-1)
-            mexErrMsgTxt("the specified output type is not supported");
-        printf("mcx.outputtype='%s';\n",outputstr);
+        int outtyp = mcx_keylookup((char*)value,outputtype);
+        if(outtyp == 5 || outtyp == 6) // map wl to jacobian, wp to nscat
+            cfg->outputtype = outtyp - 2;
+        else
+            cfg->outputtype = outtyp;
+        static char * outTypErr = "the specified output type is not supported";
+        if(outtyp == -1){
+            *err = outTypErr;
+            return -1;
+        }
     }else if(strcmp(key,"debuglevel")==0){
-        int len=mxGetNumberOfElements(item);
+        if(strcmp(dtype, "string") != 0){
+            *err = typeErr;
+            return -1;
+        } else if(dims[0] == 0){
+            *err = strLenErr;
+            return -1;
+        }
         const char debugflag[]={'R','M','P','\0'};
-        char debuglevel[MAX_SESSION_LENGTH]={'\0'};
-
-        if(!mxIsChar(item) || len==0)
-            mexErrMsgTxt("the 'debuglevel' field must be a non-empty string");
-        if(len>MAX_SESSION_LENGTH)
-            mexErrMsgTxt("the 'debuglevel' field is too long");
-        int status = mxGetString(item, debuglevel, MAX_SESSION_LENGTH);
-        if (status != 0)
-            mexWarnMsgTxt("not enough space. string is truncated.");
-        cfg->debuglevel=mcx_parsedebugopt(debuglevel,debugflag);
-        if(cfg->debuglevel==0)
-            mexWarnMsgTxt("the specified debuglevel is not supported");
-        printf("mcx.debuglevel='%d';\n",cfg->debuglevel);
+        cfg->debuglevel = mcx_parsedebugopt((char*)value,debugflag);
+        static char * dbgLvlErr = "the specified debuglevel is not supported";
+        if(cfg->debuglevel==0){
+            *err = dbgLvlErr;
+            return -1;
+        }
     }
     else if(strcmp(key,"srcpattern")==0){
-        arraydim=mxGetDimensions(item);
-        double *val=mxGetPr(item);
+        if(strcmp(dtype, "float") != 0){
+            *err = typeErr;
+            return -1;
+        } else if(ndim != 2){
+            *err = ndimErr;
+            return -1;
+        }
         if(cfg->srcpattern) free(cfg->srcpattern);
-        cfg->srcpattern=malloc(arraydim[0]*arraydim[1]*sizeof(float));
-        for(i=0;i<arraydim[0]*arraydim[1];i++)
-            cfg->srcpattern[i]=val[i];
-        printf("mcx.srcpattern=[%d %d];\n",arraydim[0],arraydim[1]);
+        cfg->srcpattern = malloc(dims[0]*dims[1]*sizeof(float));
+        memcpy(cfg->srcpattern, (float*)value, dims[0]*dims[1]*sizeof(float));
     }else if(strcmp(key,"shapes")==0){
-        int len=mxGetNumberOfElements(item);
-        if(!mxIsChar(item) || len==0)
-            mexErrMsgTxt("the 'shapes' field must be a non-empty string");
-
-        jsonshapes=new char[len+1];
-        mxGetString(item, jsonshapes, len+1);
-        jsonshapes[len]='\0';
-    } else if(strcmp(key,"detphotons")==0){ // TODO: Unknown option, is UnDocumented
+        if(strcmp(dtype, "string") != 0){
+            *err = typeErr;
+            return -1;
+        } else if(dims[0] == 0){
+            *err = strLenErr;
+            return -1;
+        }
+        Grid3D grid={&(cfg->vol),&(cfg->dim),{1.f,1.f,1.f},0};
+        if(cfg->issrcfrom0) memset(&(grid.orig.x),0,sizeof(float3));
+        if(mcx_parse_shapestring(&grid,(char*)value)){
+            *err = mcx_last_shapeerror();
+            return -1;
+        }
+    }/*else if(strcmp(key,"detphotons")==0){ // TODO: Unknown option, is UnDocumented
         arraydim=mxGetDimensions(item);
         dimdetps[0]=arraydim[0];
         dimdetps[1]=arraydim[1];
         detps=malloc(arraydim[0]*arraydim[1]*sizeof(float));
         memcpy(detps,mxGetData(item),arraydim[0]*arraydim[1]*sizeof(float));
         printf("mcx.detphotons=[%d %d];\n",arraydim[0],arraydim[1]);
-    }
+    }*/
     else if(strcmp(key,"seed")==0){
-        arraydim=mxGetDimensions(item);
-        if(MAX(arraydim[0],arraydim[1])==0)
-            mexErrMsgTxt("the 'seed' field can not be empty");
-        if(!mxIsUint8(item)){
-            double *val=mxGetPr(item);
-            cfg->seed=val[0];
-            printf("mcx.seed=%d;\n",cfg->seed);
-        }else{
-            seedbyte=arraydim[0];
-            cfg->replay.seed=malloc(arraydim[0]*arraydim[1]);
-            if(arraydim[0]!=sizeof(float)*RAND_WORD_LEN)
-                mexErrMsgTxt("the row number of cfg.seed does not match RNG seed byte-length");
-            memcpy(cfg->replay.seed,mxGetData(item),arraydim[0]*arraydim[1]);
-            cfg->seed=SEED_FROM_FILE;
-            cfg->nphoton=arraydim[1];
-            printf("mcx.nphoton=%d;\n",cfg->nphoton);
+        if(strcmp(dtype, "int") != 0){
+            *err = typeErr;
+            return -1;
         }
-    }else if(strcmp(key,"gpuid")==0){
-        int len=mxGetNumberOfElements(item);
-
-        if(mxIsChar(item)){
-            if(len==0)
-                mexErrMsgTxt("the 'gpuid' field must be an integer or non-empty string");
-            if(len>MAX_DEVICE)
-                mexErrMsgTxt("the 'gpuid' field is too long");
-            int status = mxGetString(item, cfg->deviceid, MAX_DEVICE);
-            if (status != 0)
-                mexWarnMsgTxt("not enough space. string is truncated.");
-
-            printf("mcx.gpuid='%s';\n",cfg->deviceid);
-        }else{
-            double *val=mxGetPr(item);
-            cfg->gpuid=val[0];
+        if(ndim == 0){
+            cfg->seed = *((int*)value);
+        } else if(ndim == 2){
+            static char * seedErr = "the row number of cfg.seed does not match RNG seed byte-length";
+            if(dims[0]!=sizeof(float)*RAND_WORD_LEN){
+                *err = seedErr;
+                return -1;
+            }
+            // seedbyte = dims[0];
+            cfg->replay.seed = malloc((dims[0]*dims[1]));
+            memcpy(cfg->replay.seed,value,dims[0]*dims[1]);
+            cfg->seed=SEED_FROM_FILE;
+            cfg->nphoton=dims[1];
+        } else {
+            *err = ndimErr;
+            return -1;
+        }
+    } else if(strcmp(key,"gpuid")==0){
+        if(strcmp(dtype, "string") == 0){
+            if(dims[0] > MAX_DEVICE || dims[0] == 0) {
+                *err = strLenErr;
+                return -1;
+            }
+            memcpy(cfg->deviceid, value, MAX_DEVICE);
+        } else if(strcmp(dtype, "int") == 0){
+            cfg->gpuid = *((int*)value);
             memset(cfg->deviceid,0,MAX_DEVICE);
+            static char * gpuidErr = "GPU id can not be more than 256";
             if(cfg->gpuid<MAX_DEVICE){
                 memset(cfg->deviceid,'0',cfg->gpuid-1);
                 cfg->deviceid[cfg->gpuid-1]='1';
-            }else
-                mexErrMsgTxt("GPU id can not be more than 256");
-            printf("mcx.gpuid=%d;\n",cfg->gpuid);
+            }else{
+                *err = gpuidErr;
+                return -1;
+            }
+
+        } else {
+            *err = typeErr;
+            return -1;
         }
         for(int i=0;i<MAX_DEVICE;i++)
             if(cfg->deviceid[i]=='0')
                 cfg->deviceid[i]='\0';
     }
     else if(strcmp(key,"workload")==0){
-        double *val=mxGetPr(item);
-        arraydim=mxGetDimensions(item);
-        if(arraydim[0]*arraydim[1]>MAX_DEVICE)
-            mexErrMsgTxt("the workload list can not be longer than 256");
-        for(i=0;i<arraydim[0]*arraydim[1];i++)
-            cfg->workload[i]=val[i];
-        printf("mcx.workload=<<%d>>;\n",arraydim[0]*arraydim[1]);
-    }else{
-        printf("WARNING: redundant field '%s'\n",name);
-    }
-    if(jsonshapes){
-        Grid3D grid={&(cfg->vol),&(cfg->dim),{1.f,1.f,1.f},0};
-        if(cfg->issrcfrom0) memset(&(grid.orig.x),0,sizeof(float3));
-        int status=mcx_parse_shapestring(&grid,jsonshapes);
-        delete [] jsonshapes;
-        if(status){
-            mexErrMsgTxt(mcx_last_shapeerror());
+        if(strcmp(dtype, "float") != 0){
+            *err = typeErr;
+            return -1;
+        } else if(ndim != 1){
+            *err = ndimErr;
+            return -1;
+        } else if(dims[0] == 0 || dims[0]*dims[1] >= MAX_DEVICE){
+            *err = dimsErr;
+            return -1;
         }
-    }*/
+        memcpy(cfg->workload, (float*)value, dims[0]*dims[1]* sizeof(float));
+    }else{
+        static char * unkErr = "Unknown Field Given";
+        *err = unkErr;
+        return -1;
+    }
     return 0;
 }
 
@@ -431,7 +430,7 @@ void* mcx_get_field(Config *cfg, const char *key, char** dtype, int* ndim, unsig
 }
 
 int mcx_wrapped_run_simulation(Config *cfg, GPUInfo *gpuinfo, const char**err) {
-	static char * exceptionErr = "PyMCX Terminated due to an exception!";
+	static char * exceptionErr = "MCX Terminated due to an exception!";
 	int threadid = 0, errorflag = 0;
 #ifdef _OPENMP
 	omp_set_num_threads(1);
@@ -459,7 +458,7 @@ int mcx_wrapped_run_simulation(Config *cfg, GPUInfo *gpuinfo, const char**err) {
 #ifdef _OPENMP
 	}
 #endif
-	/** If error is detected, gracefully terminate the mex and return back to MATLAB */
+	/** If error is detected, gracefully terminate the mex and return back */
 	if (errorflag){
 		*err = exceptionErr;
 		return -1;
