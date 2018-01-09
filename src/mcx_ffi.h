@@ -25,6 +25,8 @@ MCX_EXPORT void initialize_output(Config *cfg, int nout);
 
 MCX_EXPORT int mcx_wrapped_run_simulation(Config *cfg, int nout, char**err);
 
+MCX_EXPORT int  mcx_validateconfig(Config *cfg, char **errmsg, int seedbyte, float *detps, int *dimdetps);
+
 #ifdef	__cplusplus
 }
 #endif

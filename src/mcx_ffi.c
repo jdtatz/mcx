@@ -496,3 +496,186 @@ int mcx_wrapped_run_simulation(Config *cfg, int nout, char**err) {
 	}
 	return 0;
 }
+
+
+static float _my_abs_temp(float x) {
+    return x >= 0 ? x : -x;
+}
+
+/**
+ * @brief Validate all input fields, and warn incompatible inputs
+ *
+ * Perform self-checking and raise exceptions or warnings when input error is detected
+ *
+ * @param[in,out] cfg: the simulation configuration structure
+ * @param[in,out] errmsg: the simulation configuration structure
+ * @param[in] seedbyte: seed byte for replay functionality
+ * @param[in,out] detps: buffer to receive data from cfg.detphotons field
+ * @param[in] dimdetps: dimensions of the cfg.detphotons array
+ * @return if valid, return 0, otherwise -1.
+ */
+
+int mcx_validateconfig(Config *cfg, char **errmsg, int seedbyte, float *detps, int *dimdetps){
+    int i, gates;
+
+    if(!cfg->issrcfrom0){
+        cfg->srcpos.x--;cfg->srcpos.y--;cfg->srcpos.z--; /*convert to C index, grid center*/
+    }
+    /** One must define the domain and properties */
+    if (cfg->vol == NULL || cfg->medianum == 0) {
+        static char * domainErr = "You must define 'vol' and 'prop' field.";
+        *errmsg = domainErr;
+        return -1;
+    }
+    else if(cfg->tstart>cfg->tend || cfg->tstep==0.f){
+        static char * timeErr = "incorrect time gate settings";
+        *errmsg = timeErr;
+        return -1;
+    }
+    else if(_my_abs_temp(cfg->srcdir.x*cfg->srcdir.x+cfg->srcdir.y*cfg->srcdir.y+cfg->srcdir.z*cfg->srcdir.z - 1.f)>1e-5){
+        static char * unitaryErr = "field 'srcdir' must be a unitary vector";
+        *errmsg = unitaryErr;
+        return -1;
+    }
+    else if(cfg->steps.x==0.f || cfg->steps.y==0.f || cfg->steps.z==0.f){
+        static char * stepsErr = "field 'steps' can not have zero elements";
+        *errmsg = stepsErr;
+        return -1;
+    }
+    else if(cfg->tend<=cfg->tstart){
+        static char * tendErr = "field 'tend' must be greater than field 'tstart'";
+        *errmsg = tendErr;
+        return -1;
+    }
+    gates=(int)((cfg->tend-cfg->tstart)/cfg->tstep+0.5);
+    if(cfg->maxgate>gates)
+        cfg->maxgate=gates;
+    if(cfg->sradius>0.f){
+        cfg->crop0.x=MAX((int)(cfg->srcpos.x-cfg->sradius),0);
+        cfg->crop0.y=MAX((int)(cfg->srcpos.y-cfg->sradius),0);
+        cfg->crop0.z=MAX((int)(cfg->srcpos.z-cfg->sradius),0);
+        cfg->crop1.x=MIN((int)(cfg->srcpos.x+cfg->sradius),cfg->dim.x-1);
+        cfg->crop1.y=MIN((int)(cfg->srcpos.y+cfg->sradius),cfg->dim.y-1);
+        cfg->crop1.z=MIN((int)(cfg->srcpos.z+cfg->sradius),cfg->dim.z-1);
+    }else if(cfg->sradius==0.f){
+        memset(&(cfg->crop0),0,sizeof(uint3));
+        memset(&(cfg->crop1),0,sizeof(uint3));
+    }else{
+        /*
+            if -R is followed by a negative radius, mcx uses crop0/crop1 to set the cachebox
+        */
+        if(!cfg->issrcfrom0){
+            cfg->crop0.x--;cfg->crop0.y--;cfg->crop0.z--;  /*convert to C index*/
+            cfg->crop1.x--;cfg->crop1.y--;cfg->crop1.z--;
+        }
+    }
+    if(cfg->medianum==0){
+        static char * propErr = "you must define the 'prop' field in the input structure";
+        *errmsg = propErr;
+        return -1;
+    }
+    if(cfg->dim.x==0||cfg->dim.y==0||cfg->dim.z==0){
+        static char * volErr = "the 'vol' field in the input structure can not be empty";
+        *errmsg = volErr;
+        return -1;
+    }
+    if(cfg->srctype==MCX_SRC_PATTERN && cfg->srcpattern==NULL){
+        static char * srcErr = "the 'srcpattern' field can not be empty when your 'srctype' is 'pattern";
+        *errmsg = srcErr;
+        return -1;
+    }
+    if(cfg->steps.x!=1.f && cfg->unitinmm==1.f)
+        cfg->unitinmm=cfg->steps.x;
+
+    if(cfg->medianum){
+        for(int i=0;i<cfg->medianum;i++)
+            if(cfg->prop[i].mus==0.f)
+                cfg->prop[i].mus=EPS;
+    }
+    if(cfg->unitinmm!=1.f){
+        cfg->steps.x=cfg->unitinmm; cfg->steps.y=cfg->unitinmm; cfg->steps.z=cfg->unitinmm;
+        for(i=1;i<cfg->medianum;i++){
+            cfg->prop[i].mus*=cfg->unitinmm;
+            cfg->prop[i].mua*=cfg->unitinmm;
+        }
+    }
+    if(cfg->issavedet && cfg->detnum==0)
+        cfg->issavedet=0;
+    if(cfg->issavedet==0)
+        cfg->issaveexit=0;
+    if(cfg->seed<0 && cfg->seed!=SEED_FROM_FILE) cfg->seed=time(NULL);
+    if((cfg->outputtype==otJacobian || cfg->outputtype==otWP) && cfg->seed!=SEED_FROM_FILE){
+        static char * replyErr = "Jacobian output is only valid in the reply mode. Please define cfg.seed";
+        *errmsg = replyErr;
+        return -1;
+    }
+    for(i=0;i<cfg->detnum;i++){
+        if(!cfg->issrcfrom0){
+            cfg->detpos[i].x--;cfg->detpos[i].y--;cfg->detpos[i].z--;  /*convert to C index*/
+        }
+    }
+    if(cfg->isrowmajor){
+        /*from here on, the array is always col-major*/
+        mcx_convertrow2col(&(cfg->vol), &(cfg->dim));
+        cfg->isrowmajor=0;
+    }
+    if(cfg->issavedet)
+        mcx_maskdet(cfg);
+    if(cfg->seed==SEED_FROM_FILE){
+        if(cfg->respin>1){
+            cfg->respin=1;
+            fprintf(stderr,"Warning: respin is disabled in the replay mode\n");
+        }
+    }
+    cfg->his.maxmedia=cfg->medianum-1; /*skip medium 0*/
+    cfg->his.detnum=cfg->detnum;
+    cfg->his.colcount=cfg->medianum+1+cfg->issaveexit*6; /*column count=maxmedia+2*/
+
+    /* mcx_replay_prep
+     * Pre-computes the detected photon weight and time-of-fly from partial path input for replay
+     * When detected photons are replayed, this function recalculates the detected photon
+     * weight and their time-of-fly for the replay calculations.
+     */
+    if(cfg->seed==SEED_FROM_FILE && detps==NULL) {
+        static char * replayErr = "you give cfg.seed for replay, but did not specify cfg.detphotons.\nPlease define it as the detphoton output from the baseline simulation";
+        *errmsg = replayErr;
+        return -1;
+    }
+    else if(detps!=NULL && cfg->seed==SEED_FROM_FILE) {
+        if (cfg->nphoton != dimdetps[1]){
+            static char * colErr = "the column numbers of detphotons and seed do not match";
+            *errmsg = colErr;
+            return -1;
+        }
+        else if (seedbyte == 0){
+            static char * seedErr = "the seed input is empty";
+            *errmsg = seedErr;
+            return -1;
+        }
+
+        cfg->replay.weight = (float *) malloc(cfg->nphoton * sizeof(float));
+        cfg->replay.tof = (float *) calloc(cfg->nphoton, sizeof(float));
+
+        cfg->nphoton = 0;
+        for (int i = 0; i < dimdetps[1]; i++) {
+            if (cfg->replaydet == 0 || cfg->replaydet == (int) (detps[i * dimdetps[0]])) {
+                if (i != cfg->nphoton)
+                    memcpy((char *) (cfg->replay.seed) + cfg->nphoton * seedbyte,
+                           (char *) (cfg->replay.seed) + i * seedbyte, seedbyte);
+                cfg->replay.weight[cfg->nphoton] = 1.f;
+                cfg->replay.tof[cfg->nphoton] = 0.f;
+                for (int j = 2; j < cfg->medianum + 1; j++) {
+                    cfg->replay.weight[cfg->nphoton] *= expf(
+                            -cfg->prop[j - 1].mua * detps[i * dimdetps[0] + j] * cfg->unitinmm);
+                    cfg->replay.tof[cfg->nphoton] +=
+                            detps[i * dimdetps[0] + j] * cfg->unitinmm * R_C0 * cfg->prop[j - 1].n;
+                }
+                if (cfg->replay.tof[cfg->nphoton] < cfg->tstart ||
+                    cfg->replay.tof[cfg->nphoton] > cfg->tend) /*need to consider -g*/
+                    continue;
+                cfg->nphoton++;
+            }
+        }
+    }
+    return 0;
+}

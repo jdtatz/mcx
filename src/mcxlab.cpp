@@ -35,6 +35,7 @@
 #include "mcx_utils.h"
 #include "mcx_core.h"
 #include "mcx_shapes.h"
+#include "mcx_ffi.h"
 
 #ifdef _OPENMP
   #include <omp.h>
