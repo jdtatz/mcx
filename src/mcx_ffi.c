@@ -23,6 +23,7 @@
 Config * mcx_create_config(){
     Config * cfg = malloc(sizeof(Config));
     mcx_initcfg(cfg);
+	cfg->parentid = mpFFI;
     return cfg;
 }
 
@@ -318,15 +319,14 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
 			}
 		}
     } else if(strcmp(key,"seed")==0){
-        if(strcmp(dtype, "int") != 0){
-            *err = typeErr;
-            return -1;
-        }
         if(ndim == 0){
-            cfg->seed = *((int*)value);
+            cfg->seed = intV;
         } else if(ndim == 2){
-            static char * seedErr = "the row number of cfg.seed does not match RNG seed byte-length";
-            if(dims[0]!=sizeof(float)*RAND_WORD_LEN){
+			if (strcmp(dtype, "int") != 0) {
+				*err = typeErr;
+				return -1;
+			} else if(dims[0]!=sizeof(float)*RAND_WORD_LEN){
+				static char * seedErr = "the row number of cfg.seed does not match RNG seed byte-length";
                 *err = seedErr;
                 return -1;
             }
@@ -479,10 +479,12 @@ void* mcx_get_field(Config *cfg, const char *key, char** dtype, int* ndim, unsig
 
 
 int mcx_wrapped_run_simulation(Config *cfg, int nout, char**err) {
-    GPUInfo *gpuinfo;
+    static GPUInfo *gpuinfo = NULL;
+	static int activedev;
 	static char * exceptionErr = "MCX Terminated due to an exception!";
 	int threadid = 0, errorflag = 0;
-    int activedev = mcx_list_gpu(cfg, &gpuinfo);
+	if(gpuinfo == NULL)  // TODO: temp workaround
+		activedev = mcx_list_gpu(cfg, &gpuinfo);
     if(activedev == 0){
         static char * noGpuErr = "No active GPU device found";
         *err = noGpuErr;
@@ -521,7 +523,7 @@ int mcx_wrapped_run_simulation(Config *cfg, int nout, char**err) {
 	}
 #endif
 	/** If error is detected, gracefully terminate the mex and return back */
-    mcx_cleargpuinfo(&gpuinfo);
+    //mcx_cleargpuinfo(&gpuinfo);
 	if (errorflag){
 		*err = exceptionErr;
 		return -1;
@@ -548,10 +550,11 @@ static float _my_abs_temp(float x) {
  */
 
 int mcx_validateconfig(Config *cfg, char **errmsg, int seedbyte, float *detps, int *dimdetps){
-    int i, gates;
+    int i, gates, wassrcfrom0 = cfg->issrcfrom0;
 
     if(!cfg->issrcfrom0){
         cfg->srcpos.x--;cfg->srcpos.y--;cfg->srcpos.z--; /*convert to C index, grid center*/
+		cfg->issrcfrom0 = 1;
     }
     /** One must define the domain and properties */
     if (cfg->vol == NULL || cfg->medianum == 0) {
@@ -596,7 +599,7 @@ int mcx_validateconfig(Config *cfg, char **errmsg, int seedbyte, float *detps, i
         /*
             if -R is followed by a negative radius, mcx uses crop0/crop1 to set the cachebox
         */
-        if(!cfg->issrcfrom0){
+        if(!wassrcfrom0){
             cfg->crop0.x--;cfg->crop0.y--;cfg->crop0.z--;  /*convert to C index*/
             cfg->crop1.x--;cfg->crop1.y--;cfg->crop1.z--;
         }
@@ -642,7 +645,7 @@ int mcx_validateconfig(Config *cfg, char **errmsg, int seedbyte, float *detps, i
         return -1;
     }
     for(i=0;i<cfg->detnum;i++){
-        if(!cfg->issrcfrom0){
+        if(!wassrcfrom0){
             cfg->detpos[i].x--;cfg->detpos[i].y--;cfg->detpos[i].z--;  /*convert to C index*/
         }
     }

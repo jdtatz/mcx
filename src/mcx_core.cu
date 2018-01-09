@@ -1085,7 +1085,7 @@ kernel void mcx_main_loop(uint media[],float field[],float genergy[],uint n_seed
 #ifdef USE_ATOMIC
                             }else{
                                 atomicadd(& field[idx1d+tshift*gcfg->dimlen.z], replayweight[(idx*gcfg->threadphoton+min(idx,gcfg->oddphotons-1)+(int)f.ndone)]);
-                                GPUDEBUG(("atomic write to [%d] %e, w=%f\n",idx1d,weight,p.w));
+                                GPUDEBUG(("atomic write to [%d] %e, w=%f\n",idx1d,replayweight,p.w));
                             }
 #endif
                        }
@@ -1519,7 +1519,7 @@ void mcx_run_simulation(Config *cfg,GPUInfo *gpu){
      uint *gmedia;
      float4 *gPpos,*gPdir,*gPlen;
      uint   *gPseed,*gdetected;
-     float  *gPdet,*gsrcpattern,*gfield,*genergy,*greplayw=NULL,*greplaytof=NULL,*gdebugdata=NULL;
+     float  *gPdet,*gsrcpattern=NULL,*gfield,*genergy,*greplayw=NULL,*greplaytof=NULL,*gdebugdata=NULL;
      RandType *gseeddata=NULL;
      int detreclen=cfg->medianum+1+(cfg->issaveexit>0)*6;
      unsigned int is2d=(cfg->dim.x==1 ? 1 : (cfg->dim.y==1 ? 2 : (cfg->dim.z==1 ? 3 : 0)));
