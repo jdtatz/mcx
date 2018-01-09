@@ -19,6 +19,18 @@
 #define RAND_WORD_LEN 5
 #endif
 
+
+Config * mcx_create_config(){
+    Config * cfg = malloc(sizeof(Config));
+    mcx_initcfg(cfg);
+    return cfg;
+}
+
+void mcx_destroy_config(Config * cfg){
+    mcx_clearcfg(cfg);
+    free(cfg);
+}
+
 #define SET_SCALAR_FIELD(NAME, TYPEVAL) if(ndim != 0) {*err=ndimErr; return -1;} cfg->NAME = TYPEVAL;
 
 #define SET_VEC3_FIELD(NAME, TYPE) if(strcmp(dtype, #TYPE) != 0) {*err=typeErr; return -1;} \
@@ -350,16 +362,20 @@ void initialize_output(Config *cfg, int nout) {
 	cfg->issaveseed = 0;
 #endif
 	if (nout >= 1) {
+        if(cfg->exportfield) free(cfg->exportfield);
 		int fieldlen = cfg->dim.x*cfg->dim.y*cfg->dim.z*(int)((cfg->tend - cfg->tstart) / cfg->tstep + 0.5);
 		cfg->exportfield = (float*)calloc(fieldlen, sizeof(float));
 	}
 	if (nout >= 2) {
+        if(cfg->exportdetected) free(cfg->exportdetected);
 		cfg->exportdetected = (float*)malloc((cfg->medianum + 1 + cfg->issaveexit * 6)*cfg->maxdetphoton*sizeof(float));
 	}
 	if (nout >= 4) {
+        if(cfg->seeddata) free(cfg->seeddata);
 		cfg->seeddata = malloc(cfg->maxdetphoton*sizeof(float)*RAND_WORD_LEN);
 	}
 	if (nout >= 5) {
+        if(cfg->exportdebugdata) free(cfg->exportdebugdata);
 		cfg->exportdebugdata = (float*)malloc(cfg->maxjumpdebug*sizeof(float)*MCX_DEBUG_REC_LEN);
 	}
 }
@@ -429,11 +445,25 @@ void* mcx_get_field(Config *cfg, const char *key, char** dtype, int* ndim, unsig
 	return NULL;
 }
 
-int mcx_wrapped_run_simulation(Config *cfg, GPUInfo *gpuinfo, const char**err) {
+
+int mcx_wrapped_run_simulation(Config *cfg, int nout, char**err) {
+    GPUInfo *gpuinfo;
 	static char * exceptionErr = "MCX Terminated due to an exception!";
 	int threadid = 0, errorflag = 0;
+    int activedev = mcx_list_gpu(cfg, &gpuinfo);
+    if(activedev == 0){
+        static char * noGpuErr = "No active GPU device found";
+        *err = noGpuErr;
+        mcx_cleargpuinfo(&gpuinfo);
+        return -1;
+    }
+    if(mcx_validateconfig(cfg, err, 0, NULL, NULL)) {
+        mcx_cleargpuinfo(&gpuinfo);
+        return -1;
+    }
+    initialize_output(cfg, nout);
 #ifdef _OPENMP
-	omp_set_num_threads(1);
+	omp_set_num_threads(activedev);
 #pragma omp parallel shared(errorflag)
 	{
 		threadid = omp_get_thread_num();
@@ -459,6 +489,7 @@ int mcx_wrapped_run_simulation(Config *cfg, GPUInfo *gpuinfo, const char**err) {
 	}
 #endif
 	/** If error is detected, gracefully terminate the mex and return back */
+    mcx_cleargpuinfo(&gpuinfo);
 	if (errorflag){
 		*err = exceptionErr;
 		return -1;

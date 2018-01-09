@@ -33,12 +33,6 @@
 #include "float.h"
 #include "nifti1.h"
 
-#ifdef _WIN32
-#define MCX_EXPORT  __declspec( dllexport )
-#else
-#define MCX_EXPORT
-#endif
-
 #define EPS                FLT_EPSILON                   /**< round-off limit */
 #define VERY_BIG           (1.f/FLT_EPSILON)             /**< a big number */
 
@@ -216,38 +210,38 @@ typedef struct MCXConfig{
 #ifdef	__cplusplus
 extern "C" {
 #endif
-MCX_EXPORT void mcx_savedata(float *dat, size_t len, Config *cfg);
-MCX_EXPORT void mcx_savenii(float *dat, size_t len, char* name, int type32bit, int outputformatid, Config *cfg);
-MCX_EXPORT void mcx_error(const int id,const char *msg,const char *file,const int linenum);
-MCX_EXPORT void mcx_loadconfig(FILE *in, Config *cfg);
-MCX_EXPORT void mcx_saveconfig(FILE *in, Config *cfg);
-MCX_EXPORT void mcx_readconfig(char *fname, Config *cfg);
-MCX_EXPORT void mcx_writeconfig(char *fname, Config *cfg);
-MCX_EXPORT void mcx_initcfg(Config *cfg);
-MCX_EXPORT void mcx_clearcfg(Config *cfg);
-MCX_EXPORT int  mcx_validateconfig(Config *cfg, char **errmsg, int seedbyte, float *detps, int *dimdetps);
-MCX_EXPORT void mcx_parsecmd(int argc, char* argv[], Config *cfg);
-MCX_EXPORT void mcx_usage(Config *cfg,char *exename);
-MCX_EXPORT void mcx_printheader(Config *cfg);
-MCX_EXPORT void mcx_loadvolume(char *filename,Config *cfg);
-MCX_EXPORT void mcx_normalize(float field[], float scale, int fieldlen, int option);
-MCX_EXPORT int  mcx_readarg(int argc, char *argv[], int id, void *output,const char *type);
-MCX_EXPORT void mcx_printlog(Config *cfg, char *str);
-MCX_EXPORT int  mcx_remap(char *opt);
-MCX_EXPORT void mcx_maskdet(Config *cfg);
-MCX_EXPORT void mcx_dumpmask(Config *cfg);
-MCX_EXPORT void mcx_version(Config *cfg);
-MCX_EXPORT void mcx_convertrow2col(unsigned int **vol, uint3 *dim);
-MCX_EXPORT int  mcx_loadjson(cJSON *root, Config *cfg);
-MCX_EXPORT int  mcx_keylookup(char *key, const char *table[]);
-MCX_EXPORT int  mcx_lookupindex(char *key, const char *index);
-MCX_EXPORT int  mcx_parsedebugopt(char *debugopt,const char *debugflag);
-MCX_EXPORT void mcx_savedetphoton(float *ppath, void *seeds, int count, int seedbyte, Config *cfg);
-MCX_EXPORT void mcx_loadseedfile(Config *cfg);
-MCX_EXPORT void mcx_cleargpuinfo(GPUInfo **gpuinfo);
-MCX_EXPORT int  mcx_isbinstr(const char * str);
-MCX_EXPORT void mcx_progressbar(float percent, Config *cfg);
-MCX_EXPORT void mcx_flush(Config *cfg);
+void mcx_savedata(float *dat, size_t len, Config *cfg);
+void mcx_savenii(float *dat, size_t len, char* name, int type32bit, int outputformatid, Config *cfg);
+void mcx_error(const int id,const char *msg,const char *file,const int linenum);
+void mcx_loadconfig(FILE *in, Config *cfg);
+void mcx_saveconfig(FILE *in, Config *cfg);
+void mcx_readconfig(char *fname, Config *cfg);
+void mcx_writeconfig(char *fname, Config *cfg);
+void mcx_initcfg(Config *cfg);
+void mcx_clearcfg(Config *cfg);
+int  mcx_validateconfig(Config *cfg, char **errmsg, int seedbyte, float *detps, int *dimdetps);
+void mcx_parsecmd(int argc, char* argv[], Config *cfg);
+void mcx_usage(Config *cfg,char *exename);
+void mcx_printheader(Config *cfg);
+void mcx_loadvolume(char *filename,Config *cfg);
+void mcx_normalize(float field[], float scale, int fieldlen, int option);
+int  mcx_readarg(int argc, char *argv[], int id, void *output,const char *type);
+void mcx_printlog(Config *cfg, char *str);
+int  mcx_remap(char *opt);
+void mcx_maskdet(Config *cfg);
+void mcx_dumpmask(Config *cfg);
+void mcx_version(Config *cfg);
+void mcx_convertrow2col(unsigned int **vol, uint3 *dim);
+int  mcx_loadjson(cJSON *root, Config *cfg);
+int  mcx_keylookup(char *key, const char *table[]);
+int  mcx_lookupindex(char *key, const char *index);
+int  mcx_parsedebugopt(char *debugopt,const char *debugflag);
+void mcx_savedetphoton(float *ppath, void *seeds, int count, int seedbyte, Config *cfg);
+void mcx_loadseedfile(Config *cfg);
+void mcx_cleargpuinfo(GPUInfo **gpuinfo);
+int  mcx_isbinstr(const char * str);
+void mcx_progressbar(float percent, Config *cfg);
+void mcx_flush(Config *cfg);
 
 #ifdef MCX_CONTAINER
 #ifdef __cplusplus
