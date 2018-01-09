@@ -59,6 +59,7 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
     static const char *ndimErr = "Incorrect number of dimensions given.";
     static const char *dimsErr = "Incorrect shape given.";
     static const char * strLenErr = "Too long of a string";
+	static int seedbyte; // temp workaround
 
 	char charV;
 	int intV;
@@ -91,13 +92,11 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
 		}
 	}
 
-    char *jsonshapes=NULL;
-    /* // Unsure Why This Exists
-    if(strcmp(name,"nphoton")==0 && cfg->replay.seed!=NULL)
-        return 0;
-    */
-
-    IF_SCALAR_FIELD(nphoton, intV)
+	if (strcmp(key, "nphoton") == 0) {
+		if (cfg->replay.seed != NULL)
+			return 0;
+		SET_SCALAR_FIELD(nphoton, intV)
+	}
     ELIF_SCALAR_FIELD(nblocksize, uintV)
     ELIF_SCALAR_FIELD(nthread, uintV)
     ELIF_SCALAR_FIELD(tstart, floatV)
@@ -277,15 +276,48 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
             *err = mcx_last_shapeerror();
             return -1;
         }
-    }/*else if(strcmp(key,"detphotons")==0){ // TODO: Unknown option, is UnDocumented
-        arraydim=mxGetDimensions(item);
-        dimdetps[0]=arraydim[0];
-        dimdetps[1]=arraydim[1];
-        detps=malloc(arraydim[0]*arraydim[1]*sizeof(float));
-        memcpy(detps,mxGetData(item),arraydim[0]*arraydim[1]*sizeof(float));
-        printf("mcx.detphotons=[%d %d];\n",arraydim[0],arraydim[1]);
-    }*/
-    else if(strcmp(key,"seed")==0){
+    } else if(strcmp(key, "detphotons")==0){
+		if (cfg->seed != SEED_FROM_FILE) {
+			static char * replayErr = "Need cfg.seed for replay, before being given 'detphotons'";
+			*err = replayErr;
+			return -1;
+		} else if (seedbyte == 0) {
+			static char * seedErr = "the seed input is empty";
+			*err = seedErr;
+			return -1;
+		} else if (strcmp(dtype, "float") != 0) {
+			*err = typeErr;
+			return -1;
+		} else if (ndim != 2) {
+			*err = ndimErr;
+			return -1;
+		} else if (cfg->nphoton != dims[1]) {
+			*err = dimsErr;
+			return -1;
+		}
+
+		const float* detps = value;
+		cfg->replay.weight = (float *)malloc(cfg->nphoton * sizeof(float));
+		cfg->replay.tof = (float *)calloc(cfg->nphoton, sizeof(float));
+		cfg->nphoton = 0;
+		for (unsigned i = 0; i < dims[1]; i++) {
+			if (cfg->replaydet == 0 || cfg->replaydet == (int)(detps[i * dims[0]])) {
+				if (i != cfg->nphoton)
+					memcpy((char *)(cfg->replay.seed) + cfg->nphoton * seedbyte,
+						(char *)(cfg->replay.seed) + i * seedbyte, seedbyte);
+				cfg->replay.weight[cfg->nphoton] = 1.f;
+				cfg->replay.tof[cfg->nphoton] = 0.f;
+				for (unsigned j = 2; j < cfg->medianum + 1; j++) {
+					cfg->replay.weight[cfg->nphoton] *= expf(-cfg->prop[j - 1].mua * detps[i * dims[0] + j] * cfg->unitinmm);
+					cfg->replay.tof[cfg->nphoton] += detps[i * dims[0] + j] * cfg->unitinmm * R_C0 * cfg->prop[j - 1].n;
+				}
+				if (cfg->replay.tof[cfg->nphoton] < cfg->tstart ||
+					cfg->replay.tof[cfg->nphoton] > cfg->tend) /*need to consider -g*/
+					continue;
+				cfg->nphoton++;
+			}
+		}
+    } else if(strcmp(key,"seed")==0){
         if(strcmp(dtype, "int") != 0){
             *err = typeErr;
             return -1;
@@ -298,7 +330,7 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
                 *err = seedErr;
                 return -1;
             }
-            // seedbyte = dims[0];
+            seedbyte = dims[0];
             cfg->replay.seed = malloc((dims[0]*dims[1]));
             memcpy(cfg->replay.seed,value,dims[0]*dims[1]);
             cfg->seed=SEED_FROM_FILE;
@@ -636,7 +668,7 @@ int mcx_validateconfig(Config *cfg, char **errmsg, int seedbyte, float *detps, i
      * When detected photons are replayed, this function recalculates the detected photon
      * weight and their time-of-fly for the replay calculations.
      */
-    if(cfg->seed==SEED_FROM_FILE && detps==NULL) {
+    if(cfg->seed==SEED_FROM_FILE && (detps == NULL || cfg->replay.weight == NULL || cfg->replay.tof == NULL)) {
         static char * replayErr = "you give cfg.seed for replay, but did not specify cfg.detphotons.\nPlease define it as the detphoton output from the baseline simulation";
         *errmsg = replayErr;
         return -1;

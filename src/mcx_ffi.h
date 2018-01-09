@@ -21,8 +21,6 @@ MCX_EXPORT int mcx_set_field(Config *cfg, const char *key, const void *value, co
 
 MCX_EXPORT void* mcx_get_field(Config *cfg, const char *key, char** dtype, int* ndim, unsigned* dims, const char**err);
 
-MCX_EXPORT void initialize_output(Config *cfg, int nout);
-
 MCX_EXPORT int mcx_wrapped_run_simulation(Config *cfg, int nout, char**err);
 
 MCX_EXPORT int  mcx_validateconfig(Config *cfg, char **errmsg, int seedbyte, float *detps, int *dimdetps);
