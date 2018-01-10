@@ -1,11 +1,12 @@
 ﻿import ctypes
 import platform
+import functools
 import numpy as np
 
 if platform.system() == 'Windows':
-    _lib = ctypes.WinDLL('mcx.dll')
+    _lib = ctypes.WinDLL('libmcx.dll')
 else:
-    _lib = ctypes.CDLL('./mcx.so')
+    _lib = ctypes.CDLL('./libmcx.so')
 
 _create_config = _lib.mcx_create_config
 _create_config.restype = ctypes.c_void_p
@@ -90,19 +91,28 @@ class MCX:
         ndim = ndim.value
         if ndim == 0:
             return ptr[0]
+        elif ndim == 1:
+            return np.ctypeslib.as_array(ptr, (dim[0],)).copy()
         else:
-            shape = tuple(dims[i] for i in range(min(ndim, 4)))
-            return np.ctypeslib.as_array(ptr, shape).copy()
+            shape = tuple(dims[i] for i in range(ndim))
+            size = functools.reduce(lambda x,y: x*y, shape)
+            return np.ctypeslib.as_array(ptr, (size,)).reshape(shape, order='F').copy()
 
     def run(self, nout):
         err = ctypes.c_char_p()
         if _run_simulation(self._cfg, nout, ctypes.byref(err)) != 0:
             excep = 'RunTime error: "{}"'.format(err.value.decode('ASCII') if err.value else "Unknown Error")
             raise Exception(excep)
+        outs = [self.exportfield]
+        if nout >= 5:
+            outs.append(self.exportdebugdata)
+        if nout >= 4:
+            outs.append(self.seeddata)
+        if nout >= 3:
+            outs.append(self.vol)
         if nout >= 2:
-            return self.exportfield, self.exportdetected
-        else:
-            return self.exportfield
+            outs.append(self.exportdetected)
+        return outs
 
     def __del__(self):
         _destroy_config(self._cfg)

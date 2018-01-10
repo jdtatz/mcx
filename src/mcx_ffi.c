@@ -479,12 +479,13 @@ void* mcx_get_field(Config *cfg, const char *key, char** dtype, int* ndim, unsig
 
 
 int mcx_wrapped_run_simulation(Config *cfg, int nout, char**err) {
-    static GPUInfo *gpuinfo = NULL;
-	static int activedev;
+	char temp_gpu_workaround[MAX_DEVICE];
+	memcpy(temp_gpu_workaround, cfg->deviceid, MAX_DEVICE);
+
+    GPUInfo *gpuinfo;
 	static char * exceptionErr = "MCX Terminated due to an exception!";
 	int threadid = 0, errorflag = 0;
-	if(gpuinfo == NULL)  // TODO: temp workaround
-		activedev = mcx_list_gpu(cfg, &gpuinfo);
+	int activedev = mcx_list_gpu(cfg, &gpuinfo);
     if(activedev == 0){
         static char * noGpuErr = "No active GPU device found";
         *err = noGpuErr;
@@ -523,11 +524,12 @@ int mcx_wrapped_run_simulation(Config *cfg, int nout, char**err) {
 	}
 #endif
 	/** If error is detected, gracefully terminate the mex and return back */
-    //mcx_cleargpuinfo(&gpuinfo);
 	if (errorflag){
 		*err = exceptionErr;
 		return -1;
 	}
+	mcx_cleargpuinfo(&gpuinfo);
+	memcpy(cfg->deviceid, temp_gpu_workaround, MAX_DEVICE);
 	return 0;
 }
 
