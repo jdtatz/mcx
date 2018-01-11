@@ -1,12 +1,8 @@
-﻿import ctypes
-import platform
-import functools
+﻿import ctypes.util
 import numpy as np
 
-if platform.system() == 'Windows':
-    _lib = ctypes.WinDLL('libmcx.dll')
-else:
-    _lib = ctypes.CDLL('./libmcx.so')
+_libname = ctypes.util.find_library('libmcx')
+_lib = ctypes.CDLL(_libname)
 
 _create_config = _lib.mcx_create_config
 _create_config.restype = ctypes.c_void_p
@@ -26,19 +22,6 @@ _run_simulation = _lib.mcx_wrapped_run_simulation
 _run_simulation.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.POINTER(ctypes.c_char_p)]
 
 
-def _dtyper(s):
-    if s == 'float32':
-        return b'float'
-    elif s == 'float64':
-        return b'double'
-    elif s == 'int32':
-        return b'int'
-    elif s == 'uint32':
-        return b'uint'
-    else:
-        return s.encode('ASCII')
-
-
 def _converter(v):
     if v is True or v is False:
         return ctypes.byref(ctypes.c_char(v)), b"char", 0, None, b'C'
@@ -49,9 +32,9 @@ def _converter(v):
     elif isinstance(v, str):
         return ctypes.c_char_p(v.encode('ASCII')), b"string", 1, ctypes.pointer(ctypes.c_int(len(v)+1)), b'C'
     elif isinstance(v, np.ndarray):
-        if not v.flags.f_contiguous or not v.flags.c_contiguous:
+        if not v.flags.f_contiguous and not v.flags.c_contiguous:
             raise Exception('Numpy arrays must be contiguous')
-        return v.ctypes, _dtyper(str(v.dtype)), v.ndim, (ctypes.c_int*v.ndim)(*v.shape), x.flags.f_contiguous and b'F' or b'C'
+        return v.ctypes, str(v.dtype).encode('ASCII'), v.ndim, (ctypes.c_int*v.ndim)(*v.shape), v.flags.f_contiguous and b'F' or b'C'
     else:
         raise Exception("Only Booleans, Integers, Floats, and numpy Arrays may be passed.")
 
@@ -94,10 +77,10 @@ class MCX:
         if ndim == 0:
             return ptr[0]
         elif ndim == 1:
-            return np.ctypeslib.as_array(ptr, (dim[0],)).copy()
+            return np.ctypeslib.as_array(ptr, (dims[0],)).copy()
         else:
             shape = tuple(dims[i] for i in range(ndim))
-            size = functools.reduce(lambda x,y: x*y, shape)
+            size = np.prod(shape)
             return np.ctypeslib.as_array(ptr, (size,)).reshape(shape, order='F').copy()
 
     def run(self, nout):

@@ -54,6 +54,30 @@ if(ndim != 1){*err=ndimErr; return -1;} if(dims[0] != 3 && dims[0] != 4){*err=di
 #define ELIF_VEC4_FIELD(NAME, TYPE) else if (strcmp(key, #NAME) == 0) {SET_VEC4_FIELD(NAME, TYPE);}
 #define ELIF_VEC34_FIELD(NAME, TYPE) else if (strcmp(key, #NAME) == 0) {SET_VEC34_FIELD(NAME, TYPE);}
 
+#define SET_MATRIX_C2C(DST, SRC) for(uint i; i < dims[0]; i++){for(uint j; j < dims[1]; j++){DST[i*dims[0]+j]=SRC[i*dims[0]+j];}}
+#define SET_MATRIX_C2F(DST, SRC) for(uint i; i < dims[0]; i++){for(uint j; j < dims[1]; j++){DST[j*dims[1]+i]=SRC[i*dims[0]+j];}}
+#define SET_MATRIX_F2C(DST, SRC) for(uint j; j < dims[1]; j++){for(uint i; i < dims[0]; i++){DST[i*dims[0]+j]=SRC[j*dims[1]+i];}}
+#define SET_MATRIX_F2F(DST, SRC) for(uint j; j < dims[1]; j++){for(uint i; i < dims[0]; i++){DST[j*dims[1]+i]=SRC[j*dims[1]+i];}}
+
+#define SET_MATRIX_2C(DST, SRC) if(*order=='C') {SET_MATRIX_C2C(DST, SRC)} else {SET_MATRIX_F2C(DST, SRC)}
+#define SET_MATRIX_2F(DST, SRC) if(*order=='F') {SET_MATRIX_F2F(DST, SRC)} else {SET_MATRIX_C2F(DST, SRC)}
+
+#define SET_MATRIX(DST, ORD) \
+if (strcmp(dtype, "char") == 0) {\
+SET_MATRIX_2##ORD(DST, charP)\
+} else if (strcmp(dtype, "int") == 0 || (sizeof(int) == 4 && strcmp(dtype, "int32") == 0) || (sizeof(int) == 8 && strcmp(dtype, "int64") == 0)) {\
+SET_MATRIX_2##ORD(DST, intP)\
+} else if (strcmp(dtype, "uint") == 0 || (sizeof(uint) == 4 && strcmp(dtype, "uint32") == 0) || (sizeof(uint) == 8 && strcmp(dtype, "uint64") == 0)) {\
+SET_MATRIX_2##ORD(DST, uintP)\
+} else if (strcmp(dtype, "float") == 0 || strcmp(dtype, "float32") == 0) {\
+SET_MATRIX_2##ORD(DST, floatP)\
+} else if (strcmp(dtype, "double") == 0 || strcmp(dtype, "float64") == 0) {\
+SET_MATRIX_2##ORD(DST, doubleP)\
+} else {\
+	*err = typeErr;\
+	return -1;\
+}
+
 
 int mcx_set_field(Config * cfg, const char *key, const void *value, const char * dtype, int ndim, const unsigned*dims, const char *order, const char**err) {
     static const char *typeErr = "Incorrect dtype given.";
@@ -63,32 +87,43 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
     static const char * strLenErr = "Too long of a string";
 	static int seedbyte; // temp workaround
 
-	char charV;
-	int intV;
-	unsigned int uintV;
-	float floatV;
+	char charV, *charP = value;
+	int intV, *intP = value;
+	unsigned uintV, *uintP = value;
+	float floatV, *floatP = value;
+	double doubleV, *doubleP = value;
 	if (ndim == 0) {
 		if (strcmp(dtype, "char") == 0) {
 			charV = *((char*)value);
 			intV = (int)charV;
 			uintV = (unsigned int)charV;
 			floatV = (float)charV;
-		} else if (strcmp(dtype, "int") == 0) {
+			doubleV = (double)doubleV;
+		} else if (strcmp(dtype, "int") == 0 || (sizeof(int) == 4 && strcmp(dtype, "int32") == 0) || (sizeof(int) == 8 && strcmp(dtype, "int64") == 0)) {
 			intV = *((int*)value);
 			charV = (char)intV;
 			uintV = (unsigned int)intV;
 			floatV = (float)intV;
-		} else if (strcmp(dtype, "uint") == 0) {
+			doubleV = (double)doubleV;
+		} else if (strcmp(dtype, "uint") == 0 || (sizeof(uint) == 4 && strcmp(dtype, "uint32") == 0) || (sizeof(uint) == 8 && strcmp(dtype, "uint64") == 0)) {
 			uintV = *((unsigned int*)value);
 			charV = (char)uintV;
 			intV = (int)uintV;
 			floatV = (float)uintV;
-		} else if (strcmp(dtype, "float") == 0) {
+			doubleV = (double)doubleV;
+		} else if (strcmp(dtype, "float") == 0 || strcmp(dtype, "float32") == 0) {
 			floatV = *((float*)value);
 			charV = (char)floatV;
 			intV = (int)floatV;
 			uintV = (unsigned int)floatV;
-		} else {
+			doubleV = (double)doubleV;
+		} else if (strcmp(dtype, "double") == 0 || strcmp(dtype, "float64") == 0) {
+			doubleV = *((double*)value);
+			charV = (char)doubleV;
+			intV = (int)doubleV;
+			uintV = (unsigned int)doubleV;
+			floatV = (float)doubleV;
+		}  else {
 			*err = typeErr;
 			return -1;
 		}
@@ -142,7 +177,7 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
     ELIF_VEC4_FIELD(srcparam1, float)
     ELIF_VEC4_FIELD(srcparam2, float)
     else if (strcmp(key, "vol") == 0) {
-		if (strcmp(dtype, "uint") != 0) {
+		if (strcmp(dtype, "uint") != 0 && !(sizeof(uint) == 4 && strcmp(dtype, "uint32") == 0) && !(sizeof(uint) == 8 && strcmp(dtype, "uint64") == 0)) {
 			*err = typeErr;
 			return -1;
 		} else if (ndim != 3) {
@@ -159,10 +194,7 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
         cfg->mediabyte = sizeof(unsigned int);
 		cfg->isrowmajor = (*order) == 'C';
     } else if(strcmp(key, "prop") == 0){
-        if(strcmp(dtype, "float") != 0){
-            *err = typeErr;
-            return -1;
-        } else if(ndim != 2){
+        if(ndim != 2){
             *err = ndimErr;
             return -1;
         } else if(dims[0] <= 0 || dims[1] != 4){
@@ -172,27 +204,10 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
         cfg->medianum = dims[0];
         if(cfg->prop) free(cfg->prop);
         cfg->prop = (Medium*)malloc(cfg->medianum*sizeof(Medium));
-		if (*order == 'C') {
-			for (unsigned i = 0;i < cfg->medianum;i++) {
-				cfg->prop[i].mua = ((float*)value)[i * 4];
-				cfg->prop[i].mus = ((float*)value)[i * 4 + 1];
-				cfg->prop[i].g = ((float*)value)[i * 4 + 2];
-				cfg->prop[i].n = ((float*)value)[i * 4 + 3];
-			}
-		}
-		else {
-			for (unsigned i = 0;i < cfg->medianum;i++) {
-				cfg->prop[i].mua = ((float*)value)[i];
-				cfg->prop[i].mus = ((float*)value)[cfg->medianum + i];
-				cfg->prop[i].g = ((float*)value)[2*cfg->medianum + i];
-				cfg->prop[i].n = ((float*)value)[3*cfg->medianum + i];
-			}
-		}
+		float * dst = cfg->prop;
+		SET_MATRIX(dst, C);
     } else if(strcmp(key, "detpos")==0){
-        if(strcmp(dtype, "float") != 0){
-            *err = typeErr;
-            return -1;
-        } else if(ndim != 2){
+        if(ndim != 2){
             *err = ndimErr;
             return -1;
         } else if(dims[0] <= 0 || dims[1] != 4){
@@ -202,21 +217,8 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
         cfg->detnum=dims[0];
         if(cfg->detpos) free(cfg->detpos);
         cfg->detpos = (float4*)malloc(cfg->detnum*sizeof(float4));
-		if (*order == 'C') {
-			for (unsigned i = 0; i < cfg->detnum; i++) {
-				cfg->detpos[i].x = ((float *)value)[i * 4];
-				cfg->detpos[i].y = ((float *)value)[i * 4 + 1];
-				cfg->detpos[i].z = ((float *)value)[i * 4 + 2];
-				cfg->detpos[i].w = ((float *)value)[i * 4 + 3];
-			}
-		} else {
-			for (unsigned i = 0; i < cfg->detnum; i++) {
-				cfg->detpos[i].x = ((float *)value)[i];
-				cfg->detpos[i].y = ((float *)value)[cfg->detnum + i];
-				cfg->detpos[i].z = ((float *)value)[2*cfg->detnum + i];
-				cfg->detpos[i].w = ((float *)value)[3*cfg->detnum + i];
-			}
-		}
+		float * dst = cfg->detpos;
+		SET_MATRIX(dst, C);
     } else if(strcmp(key,"session")==0) {
         if(strcmp(dtype, "string") != 0){
             *err = typeErr;
@@ -279,24 +281,13 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
         }
     }
     else if(strcmp(key,"srcpattern")==0){
-        if(strcmp(dtype, "float") != 0){
-            *err = typeErr;
-            return -1;
-        } else if(ndim != 2){
+        if(ndim != 2){
             *err = ndimErr;
             return -1;
         }
         if(cfg->srcpattern) free(cfg->srcpattern);
         cfg->srcpattern = malloc(dims[0]*dims[1]*sizeof(float));
-		if (*order == 'F') {
-			memcpy(cfg->srcpattern, (float*)value, dims[0] * dims[1] * sizeof(float));
-		} else {
-			for (unsigned i = 0; i < dims[0]; i++) {
-				for (unsigned j = 0; j < dims[1]; j++) {
-					cfg->srcpattern[j*dims[1] + i] = ((float*)value)[i*dims[0]+j];
-				}
-			}
-		}
+		SET_MATRIX(cfg->srcpattern, F)
     }else if(strcmp(key,"shapes")==0){
         if(strcmp(dtype, "string") != 0){
             *err = typeErr;
@@ -320,7 +311,7 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
 			static char * seedErr = "the seed input is empty";
 			*err = seedErr;
 			return -1;
-		} else if (strcmp(dtype, "float") != 0) {
+		} else if (strcmp(dtype, "float") != 0 && strcmp(dtype, "float32") != 0) {
 			*err = typeErr;
 			return -1;
 		} else if (ndim != 2) {
@@ -356,17 +347,15 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
         if(ndim == 0){
             cfg->seed = intV;
         } else if(ndim == 2){
-			if (strcmp(dtype, "int") != 0) {
-				*err = typeErr;
-				return -1;
-			} else if(dims[0]!=sizeof(float)*RAND_WORD_LEN){
+			if(dims[0]!=sizeof(float)*RAND_WORD_LEN){
 				static char * seedErr = "the row number of cfg.seed does not match RNG seed byte-length";
                 *err = seedErr;
                 return -1;
             }
             seedbyte = dims[0];
             cfg->replay.seed = malloc((dims[0]*dims[1]));
-            memcpy(cfg->replay.seed,value,dims[0]*dims[1]);
+			int * dst = cfg->replay.seed;
+			SET_MATRIX(dst, F)
             cfg->seed=SEED_FROM_FILE;
             cfg->nphoton=dims[1];
         } else {
@@ -391,7 +380,6 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
                 *err = gpuidErr;
                 return -1;
             }
-
         } else {
             *err = typeErr;
             return -1;
@@ -401,17 +389,17 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
                 cfg->deviceid[i]='\0';
     }
     else if(strcmp(key,"workload")==0){
-        if(strcmp(dtype, "float") != 0){
+        if(strcmp(dtype, "float") != 0 && strcmp(dtype, "float32") != 0){
             *err = typeErr;
             return -1;
         } else if(ndim != 1){
             *err = ndimErr;
             return -1;
-        } else if(dims[0] == 0 || dims[0]*dims[1] >= MAX_DEVICE){
+        } else if(dims[0] == 0 || dims[0] >= MAX_DEVICE){
             *err = dimsErr;
             return -1;
         }
-        memcpy(cfg->workload, (float*)value, dims[0]*dims[1]* sizeof(float));
+        memcpy(cfg->workload, (float*)value, dims[0] * sizeof(float));
     }else{
         static char * unkErr = "Unknown Field Given";
         *err = unkErr;
