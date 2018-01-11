@@ -15,7 +15,7 @@ _destroy_config = _lib.mcx_destroy_config
 _destroy_config.argtypes = [ctypes.c_void_p]
 
 _set_field = _lib.mcx_set_field
-_set_field.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_void_p, ctypes.c_char_p, ctypes.c_int, ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_char_p)]
+_set_field.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_void_p, ctypes.c_char_p, ctypes.c_int, ctypes.POINTER(ctypes.c_int), ctypes.c_char_p, ctypes.POINTER(ctypes.c_char_p)]
 _set_field.restype = ctypes.c_int
 
 _get_field = _lib.mcx_get_field
@@ -41,15 +41,17 @@ def _dtyper(s):
 
 def _converter(v):
     if v is True or v is False:
-        return ctypes.byref(ctypes.c_char(v)), b"char", 0, None
+        return ctypes.byref(ctypes.c_char(v)), b"char", 0, None, b'C'
     elif isinstance(v, int):
-        return ctypes.byref(ctypes.c_int(v)), b"int", 0, None
+        return ctypes.byref(ctypes.c_int(v)), b"int", 0, None, b'C'
     elif isinstance(v, float):
-        return ctypes.byref(ctypes.c_float(v)), b"float", 0, None
+        return ctypes.byref(ctypes.c_float(v)), b"float", 0, None, b'C'
     elif isinstance(v, str):
-        return ctypes.c_char_p(v.encode('ASCII')), b"string", 1, ctypes.pointer(ctypes.c_int(len(v)+1))
+        return ctypes.c_char_p(v.encode('ASCII')), b"string", 1, ctypes.pointer(ctypes.c_int(len(v)+1)), b'C'
     elif isinstance(v, np.ndarray):
-        return np.ascontiguousarray(v).ctypes, _dtyper(str(v.dtype)), v.ndim, (ctypes.c_int*v.ndim)(*v.shape)
+        if not v.flags.f_contiguous or not v.flags.c_contiguous:
+            raise Exception('Numpy arrays must be contiguous')
+        return v.ctypes, _dtyper(str(v.dtype)), v.ndim, (ctypes.c_int*v.ndim)(*v.shape), x.flags.f_contiguous and b'F' or b'C'
     else:
         raise Exception("Only Booleans, Integers, Floats, and numpy Arrays may be passed.")
 

@@ -17,7 +17,7 @@ MCX_EXPORT Config * mcx_create_config();
 
 MCX_EXPORT void mcx_destroy_config(Config * cfg);
 
-MCX_EXPORT int mcx_set_field(Config *cfg, const char *key, const void *value, const char * dtype, int ndim, const unsigned*dims, const char**err);
+MCX_EXPORT int mcx_set_field(Config *cfg, const char *key, const void *value, const char * dtype, int ndim, const unsigned*dims, const char *order, const char**err);
 
 MCX_EXPORT void* mcx_get_field(Config *cfg, const char *key, char** dtype, int* ndim, unsigned* dims, const char**err);
 

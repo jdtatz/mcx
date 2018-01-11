@@ -27,6 +27,7 @@
 #define _MCEXTREME_UTILITIES_H
 
 #include <stdio.h>
+#include <setjmp.h>
 #include <vector_types.h>
 #include "br2cu.h"
 #include "cjson/cJSON.h"
@@ -212,6 +213,7 @@ extern "C" {
 #endif
 void mcx_savedata(float *dat, size_t len, Config *cfg);
 void mcx_savenii(float *dat, size_t len, char* name, int type32bit, int outputformatid, Config *cfg);
+void mcx_set_error_handler(jmp_buf * bufp);
 void mcx_error(const int id,const char *msg,const char *file,const int linenum);
 void mcx_loadconfig(FILE *in, Config *cfg);
 void mcx_saveconfig(FILE *in, Config *cfg);

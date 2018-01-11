@@ -55,10 +55,11 @@ if(ndim != 1){*err=ndimErr; return -1;} if(dims[0] != 3 && dims[0] != 4){*err=di
 #define ELIF_VEC34_FIELD(NAME, TYPE) else if (strcmp(key, #NAME) == 0) {SET_VEC34_FIELD(NAME, TYPE);}
 
 
-int mcx_set_field(Config * cfg, const char *key, const void *value, const char * dtype, int ndim, const unsigned*dims, const char**err) {
+int mcx_set_field(Config * cfg, const char *key, const void *value, const char * dtype, int ndim, const unsigned*dims, const char *order, const char**err) {
     static const char *typeErr = "Incorrect dtype given.";
     static const char *ndimErr = "Incorrect number of dimensions given.";
     static const char *dimsErr = "Incorrect shape given.";
+	static const char *ordErr = "Order must be either 'C' or 'F'.";
     static const char * strLenErr = "Too long of a string";
 	static int seedbyte; // temp workaround
 
@@ -91,6 +92,11 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
 			*err = typeErr;
 			return -1;
 		}
+	}
+
+	if (ndim >= 2 && (*order != 'C' && *order != 'F')) {
+		*err = ordErr;
+		return -1;
 	}
 
 	if (strcmp(key, "nphoton") == 0) {
@@ -151,6 +157,7 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
         cfg->vol = (unsigned int*)malloc(dimxyz * sizeof(unsigned int));
         memcpy(cfg->vol, value, dimxyz * sizeof(unsigned int));
         cfg->mediabyte = sizeof(unsigned int);
+		cfg->isrowmajor = (*order) == 'C';
     } else if(strcmp(key, "prop") == 0){
         if(strcmp(dtype, "float") != 0){
             *err = typeErr;
@@ -165,12 +172,22 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
         cfg->medianum = dims[0];
         if(cfg->prop) free(cfg->prop);
         cfg->prop = (Medium*)malloc(cfg->medianum*sizeof(Medium));
-        for(unsigned i=0;i<cfg->medianum;i++){
-            cfg->prop[i].mua = ((float*)value)[i*4  ];
-            cfg->prop[i].mus = ((float*)value)[i*4+1];
-            cfg->prop[i].g   = ((float*)value)[i*4+2];
-            cfg->prop[i].n   = ((float*)value)[i*4+3];
-        }
+		if (*order == 'C') {
+			for (unsigned i = 0;i < cfg->medianum;i++) {
+				cfg->prop[i].mua = ((float*)value)[i * 4];
+				cfg->prop[i].mus = ((float*)value)[i * 4 + 1];
+				cfg->prop[i].g = ((float*)value)[i * 4 + 2];
+				cfg->prop[i].n = ((float*)value)[i * 4 + 3];
+			}
+		}
+		else {
+			for (unsigned i = 0;i < cfg->medianum;i++) {
+				cfg->prop[i].mua = ((float*)value)[i];
+				cfg->prop[i].mus = ((float*)value)[cfg->medianum + i];
+				cfg->prop[i].g = ((float*)value)[2*cfg->medianum + i];
+				cfg->prop[i].n = ((float*)value)[3*cfg->medianum + i];
+			}
+		}
     } else if(strcmp(key, "detpos")==0){
         if(strcmp(dtype, "float") != 0){
             *err = typeErr;
@@ -185,12 +202,21 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
         cfg->detnum=dims[0];
         if(cfg->detpos) free(cfg->detpos);
         cfg->detpos = (float4*)malloc(cfg->detnum*sizeof(float4));
-        for(unsigned i=0; i < cfg->detnum; i++){
-            cfg->detpos[i].x = ((float *)value)[i*4];
-            cfg->detpos[i].y = ((float *)value)[i*4+1];
-            cfg->detpos[i].z = ((float *)value)[i*4+2];
-            cfg->detpos[i].w = ((float *)value)[i*4+3];
-        }
+		if (*order == 'C') {
+			for (unsigned i = 0; i < cfg->detnum; i++) {
+				cfg->detpos[i].x = ((float *)value)[i * 4];
+				cfg->detpos[i].y = ((float *)value)[i * 4 + 1];
+				cfg->detpos[i].z = ((float *)value)[i * 4 + 2];
+				cfg->detpos[i].w = ((float *)value)[i * 4 + 3];
+			}
+		} else {
+			for (unsigned i = 0; i < cfg->detnum; i++) {
+				cfg->detpos[i].x = ((float *)value)[i];
+				cfg->detpos[i].y = ((float *)value)[cfg->detnum + i];
+				cfg->detpos[i].z = ((float *)value)[2*cfg->detnum + i];
+				cfg->detpos[i].w = ((float *)value)[3*cfg->detnum + i];
+			}
+		}
     } else if(strcmp(key,"session")==0) {
         if(strcmp(dtype, "string") != 0){
             *err = typeErr;
@@ -262,7 +288,15 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
         }
         if(cfg->srcpattern) free(cfg->srcpattern);
         cfg->srcpattern = malloc(dims[0]*dims[1]*sizeof(float));
-        memcpy(cfg->srcpattern, (float*)value, dims[0]*dims[1]*sizeof(float));
+		if (*order == 'F') {
+			memcpy(cfg->srcpattern, (float*)value, dims[0] * dims[1] * sizeof(float));
+		} else {
+			for (unsigned i = 0; i < dims[0]; i++) {
+				for (unsigned j = 0; j < dims[1]; j++) {
+					cfg->srcpattern[j*dims[1] + i] = ((float*)value)[i*dims[0]+j];
+				}
+			}
+		}
     }else if(strcmp(key,"shapes")==0){
         if(strcmp(dtype, "string") != 0){
             *err = typeErr;
@@ -497,37 +531,31 @@ int mcx_wrapped_run_simulation(Config *cfg, int nout, char**err) {
         return -1;
     }
     initialize_output(cfg, nout);
+/*
 #ifdef _OPENMP
 	omp_set_num_threads(activedev);
 #pragma omp parallel shared(errorflag)
 	{
 		threadid = omp_get_thread_num();
 #endif
-		/** Enclose all simulation calls inside a try/catch construct for exception handling */
-		//try {
-			/** Call the main simulation host function to start the simulation */
-			mcx_run_simulation(cfg, gpuinfo);
-		/*}
-		catch (const char *err) {
-			printf("Error from thread (%d): %s\n", threadid, err);
-			errorflag++;
-		}
-		catch (const std::exception &err) {
-			printf("C++ Error from thread (%d): %s\n", threadid, err.what());
-			errorflag++;
-		}
-		catch (...) {
-			printf("Unknown Exception from thread (%d)", threadid);
-			errorflag++;
-		}*/
+*/
+	int errCode;
+	jmp_buf errHandler;
+	if ((errCode = setjmp(errHandler)) == 0) {
+		mcx_set_error_handler(&errHandler);
+		mcx_run_simulation(cfg, gpuinfo);
+	} else {
+		mcx_set_error_handler(NULL);
+		static char * excepErr = "Exception occured while running";
+		*err = excepErr;
+		return -errCode;
+	}
+	mcx_set_error_handler(NULL);
+/*
 #ifdef _OPENMP
 	}
 #endif
-	/** If error is detected, gracefully terminate the mex and return back */
-	if (errorflag){
-		*err = exceptionErr;
-		return -1;
-	}
+*/
 	mcx_cleargpuinfo(&gpuinfo);
 	memcpy(cfg->deviceid, temp_gpu_workaround, MAX_DEVICE);
 	return 0;
