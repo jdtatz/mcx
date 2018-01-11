@@ -54,10 +54,10 @@ if(ndim != 1){*err=ndimErr; return -1;} if(dims[0] != 3 && dims[0] != 4){*err=di
 #define ELIF_VEC4_FIELD(NAME, TYPE) else if (strcmp(key, #NAME) == 0) {SET_VEC4_FIELD(NAME, TYPE);}
 #define ELIF_VEC34_FIELD(NAME, TYPE) else if (strcmp(key, #NAME) == 0) {SET_VEC34_FIELD(NAME, TYPE);}
 
-#define SET_MATRIX_C2C(DST, SRC) for(uint i; i < dims[0]; i++){for(uint j; j < dims[1]; j++){DST[i*dims[0]+j]=SRC[i*dims[0]+j];}}
-#define SET_MATRIX_C2F(DST, SRC) for(uint i; i < dims[0]; i++){for(uint j; j < dims[1]; j++){DST[j*dims[1]+i]=SRC[i*dims[0]+j];}}
-#define SET_MATRIX_F2C(DST, SRC) for(uint j; j < dims[1]; j++){for(uint i; i < dims[0]; i++){DST[i*dims[0]+j]=SRC[j*dims[1]+i];}}
-#define SET_MATRIX_F2F(DST, SRC) for(uint j; j < dims[1]; j++){for(uint i; i < dims[0]; i++){DST[j*dims[1]+i]=SRC[j*dims[1]+i];}}
+#define SET_MATRIX_C2C(DST, SRC) for(uint i=0; i < dims[0]; i++){for(uint j=0; j < dims[1]; j++){DST[i*dims[1]+j]=SRC[i*dims[1]+j];}}
+#define SET_MATRIX_C2F(DST, SRC) for(uint i=0; i < dims[0]; i++){for(uint j=0; j < dims[1]; j++){DST[j*dims[0]+i]=SRC[i*dims[1]+j];}}
+#define SET_MATRIX_F2C(DST, SRC) for(uint j=0; j < dims[1]; j++){for(uint i=0; i < dims[0]; i++){DST[i*dims[1]+j]=SRC[j*dims[0]+i];}}
+#define SET_MATRIX_F2F(DST, SRC) for(uint j=0; j < dims[1]; j++){for(uint i=0; i < dims[0]; i++){DST[j*dims[0]+i]=SRC[j*dims[0]+i];}}
 
 #define SET_MATRIX_2C(DST, SRC) if(*order=='C') {SET_MATRIX_C2C(DST, SRC)} else {SET_MATRIX_F2C(DST, SRC)}
 #define SET_MATRIX_2F(DST, SRC) if(*order=='F') {SET_MATRIX_F2F(DST, SRC)} else {SET_MATRIX_C2F(DST, SRC)}
@@ -203,7 +203,7 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
         }
         cfg->medianum = dims[0];
         if(cfg->prop) free(cfg->prop);
-        cfg->prop = (Medium*)malloc(cfg->medianum*sizeof(Medium));
+        cfg->prop = malloc(cfg->medianum*sizeof(Medium));
 		float * dst = cfg->prop;
 		SET_MATRIX(dst, C);
     } else if(strcmp(key, "detpos")==0){
@@ -216,8 +216,8 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
         }
         cfg->detnum=dims[0];
         if(cfg->detpos) free(cfg->detpos);
-        cfg->detpos = (float4*)malloc(cfg->detnum*sizeof(float4));
-		float * dst = cfg->detpos;
+        cfg->detpos = malloc(cfg->detnum*sizeof(float4));
+		float *dst = cfg->detpos;
 		SET_MATRIX(dst, C);
     } else if(strcmp(key,"session")==0) {
         if(strcmp(dtype, "string") != 0){
