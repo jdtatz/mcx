@@ -54,6 +54,8 @@ if(ndim != 1){*err=ndimErr; return -1;} if(dims[0] != 3 && dims[0] != 4){*err=di
 #define ELIF_VEC4_FIELD(NAME, TYPE) else if (strcmp(key, #NAME) == 0) {SET_VEC4_FIELD(NAME, TYPE);}
 #define ELIF_VEC34_FIELD(NAME, TYPE) else if (strcmp(key, #NAME) == 0) {SET_VEC34_FIELD(NAME, TYPE);}
 
+#define SET_VECTOR_HELPER(DST, SRC) for(uint i=0; i < dims[0]; i++){DST[i] = SRC[i];}
+
 #define SET_MATRIX_C2C(DST, SRC) for(uint i=0; i < dims[0]; i++){for(uint j=0; j < dims[1]; j++){DST[i*dims[1]+j]=SRC[i*dims[1]+j];}}
 #define SET_MATRIX_C2F(DST, SRC) for(uint i=0; i < dims[0]; i++){for(uint j=0; j < dims[1]; j++){DST[j*dims[0]+i]=SRC[i*dims[1]+j];}}
 #define SET_MATRIX_F2C(DST, SRC) for(uint j=0; j < dims[1]; j++){for(uint i=0; i < dims[0]; i++){DST[i*dims[1]+j]=SRC[j*dims[0]+i];}}
@@ -62,21 +64,33 @@ if(ndim != 1){*err=ndimErr; return -1;} if(dims[0] != 3 && dims[0] != 4){*err=di
 #define SET_MATRIX_2C(DST, SRC) if(*order=='C') {SET_MATRIX_C2C(DST, SRC)} else {SET_MATRIX_F2C(DST, SRC)}
 #define SET_MATRIX_2F(DST, SRC) if(*order=='F') {SET_MATRIX_F2F(DST, SRC)} else {SET_MATRIX_C2F(DST, SRC)}
 
-#define SET_MATRIX(DST, ORD) \
+#define SET_VOL_C2C(DST, SRC) for(uint i=0; i < dims[0]; i++){for(uint j=0; j < dims[1]; j++){for(uint k=0; k < dims[2]; k++){DST[i*dims[1]*dims[2]+j*dims[2]+k]=SRC[i*dims[1]*dims[2]+j*dims[2]+k];}}}
+#define SET_VOL_C2F(DST, SRC) for(uint i=0; i < dims[0]; i++){for(uint j=0; j < dims[1]; j++){for(uint k=0; k < dims[2]; k++){DST[k*dims[0]*dims[1]+j*dims[0]+i]=SRC[i*dims[1]*dims[2]+j*dims[2]+k];}}}
+#define SET_VOL_F2C(DST, SRC) for(uint k=0; k < dims[2]; k++){for(uint j=0; j < dims[1]; j++){for(uint i=0; i < dims[0]; i++){DST[i*dims[1]*dims[2]+j*dims[2]+k]=SRC[k*dims[0]*dims[1]+j*dims[0]+i];}}}
+#define SET_VOL_F2F(DST, SRC) for(uint k=0; k < dims[2]; k++){for(uint j=0; j < dims[1]; j++){for(uint i=0; i < dims[0]; i++){DST[k*dims[0]*dims[1]+j*dims[0]+i]=SRC[k*dims[0]*dims[1]+j*dims[0]+i];}}}
+
+#define SET_VOL_2C(DST, SRC) if(*order=='C') {SET_VOL_C2C(DST, SRC)} else {SET_VOL_F2C(DST, SRC)}
+#define SET_VOL_2F(DST, SRC) if(*order=='F') {SET_VOL_F2F(DST, SRC)} else {SET_VOL_C2F(DST, SRC)}
+
+#define TYPE_SAFE_PTR_SETTER(DST, SETTER) \
 if (strcmp(dtype, "char") == 0) {\
-SET_MATRIX_2##ORD(DST, charP)\
+SETTER(DST, charP)\
 } else if (strcmp(dtype, "int") == 0 || (sizeof(int) == 4 && strcmp(dtype, "int32") == 0) || (sizeof(int) == 8 && strcmp(dtype, "int64") == 0)) {\
-SET_MATRIX_2##ORD(DST, intP)\
+SETTER(DST, intP)\
 } else if (strcmp(dtype, "uint") == 0 || (sizeof(uint) == 4 && strcmp(dtype, "uint32") == 0) || (sizeof(uint) == 8 && strcmp(dtype, "uint64") == 0)) {\
-SET_MATRIX_2##ORD(DST, uintP)\
+SETTER(DST, uintP)\
 } else if (strcmp(dtype, "float") == 0 || strcmp(dtype, "float32") == 0) {\
-SET_MATRIX_2##ORD(DST, floatP)\
+SETTER(DST, floatP)\
 } else if (strcmp(dtype, "double") == 0 || strcmp(dtype, "float64") == 0) {\
-SET_MATRIX_2##ORD(DST, doubleP)\
+SETTER(DST, doubleP)\
 } else {\
 	*err = typeErr;\
 	return -1;\
 }
+
+#define SET_VECTOR(DST) TYPE_SAFE_PTR_SETTER(DST, SET_VECTOR_HELPER)
+#define SET_MATRIX(DST, ORD) TYPE_SAFE_PTR_SETTER(DST, SET_MATRIX_2##ORD)
+#define SET_VOL(DST, ORD) TYPE_SAFE_PTR_SETTER(DST, SET_VOL_2##ORD)
 
 
 int mcx_set_field(Config * cfg, const char *key, const void *value, const char * dtype, int ndim, const unsigned*dims, const char *order, const char**err) {
@@ -177,10 +191,7 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
     ELIF_VEC4_FIELD(srcparam1, float)
     ELIF_VEC4_FIELD(srcparam2, float)
     else if (strcmp(key, "vol") == 0) {
-		if (strcmp(dtype, "uint") != 0 && !(sizeof(uint) == 4 && strcmp(dtype, "uint32") == 0) && !(sizeof(uint) == 8 && strcmp(dtype, "uint64") == 0)) {
-			*err = typeErr;
-			return -1;
-		} else if (ndim != 3) {
+		if (ndim != 3) {
 			*err = ndimErr;
 			return -1;
 		}
@@ -190,9 +201,9 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
         int dimxyz=cfg->dim.x*cfg->dim.y*cfg->dim.z;
         if(cfg->vol) free(cfg->vol);
         cfg->vol = (unsigned int*)malloc(dimxyz * sizeof(unsigned int));
-        memcpy(cfg->vol, value, dimxyz * sizeof(unsigned int));
+		SET_VOL(cfg->vol, F)
         cfg->mediabyte = sizeof(unsigned int);
-		cfg->isrowmajor = (*order) == 'C';
+		cfg->isrowmajor = 0;
     } else if(strcmp(key, "prop") == 0){
         if(ndim != 2){
             *err = ndimErr;
@@ -320,6 +331,9 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
 		} else if (cfg->nphoton != dims[1]) {
 			*err = dimsErr;
 			return -1;
+		} else if (*order != 'F') {  // TODO: Really unsure of this
+			*err = ordErr;
+			return -1;
 		}
 
 		const float* detps = value;
@@ -369,8 +383,8 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
                 return -1;
             }
             memcpy(cfg->deviceid, value, MAX_DEVICE);
-        } else if(strcmp(dtype, "int") == 0){
-            cfg->gpuid = *((int*)value);
+        } else if(ndim == 0){
+            cfg->gpuid = intV;
             memset(cfg->deviceid,0,MAX_DEVICE);
             static char * gpuidErr = "GPU id can not be more than 256";
             if(cfg->gpuid<MAX_DEVICE){
@@ -389,17 +403,14 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
                 cfg->deviceid[i]='\0';
     }
     else if(strcmp(key,"workload")==0){
-        if(strcmp(dtype, "float") != 0 && strcmp(dtype, "float32") != 0){
-            *err = typeErr;
-            return -1;
-        } else if(ndim != 1){
+        if(ndim != 1){
             *err = ndimErr;
             return -1;
         } else if(dims[0] == 0 || dims[0] >= MAX_DEVICE){
             *err = dimsErr;
             return -1;
         }
-        memcpy(cfg->workload, (float*)value, dims[0] * sizeof(float));
+		SET_VECTOR(cfg->workload)
     }else{
         static char * unkErr = "Unknown Field Given";
         *err = unkErr;
@@ -494,7 +505,7 @@ void* mcx_get_field(Config *cfg, const char *key, char** dtype, int* ndim, unsig
 		dims[0] = MAX_DEVICE;
 		return &cfg->workload;
 	}
-	static const char * invalidErr = "Wanted key is not yet implemnted.";
+	static const char * invalidErr = "Not yet implemnted.";
 	*err = invalidErr;
 	return NULL;
 }
@@ -519,33 +530,30 @@ int mcx_wrapped_run_simulation(Config *cfg, int nout, char**err) {
         return -1;
     }
     initialize_output(cfg, nout);
-/*
 #ifdef _OPENMP
 	omp_set_num_threads(activedev);
 #pragma omp parallel shared(errorflag)
 	{
 		threadid = omp_get_thread_num();
 #endif
-*/
-	int errCode;
-	jmp_buf errHandler;
-	if ((errCode = setjmp(errHandler)) == 0) {
-		mcx_set_error_handler(&errHandler);
-		mcx_run_simulation(cfg, gpuinfo);
-	} else {
+		jmp_buf errHandler;
+		if (setjmp(errHandler) == 0) {
+			mcx_set_error_handler(&errHandler);
+			mcx_run_simulation(cfg, gpuinfo);
+		} else {
+			errorflag++;
+		}
 		mcx_set_error_handler(NULL);
-		static char * excepErr = "Exception occured while running";
-		*err = excepErr;
-		return -errCode;
-	}
-	mcx_set_error_handler(NULL);
-/*
 #ifdef _OPENMP
 	}
 #endif
-*/
 	mcx_cleargpuinfo(&gpuinfo);
 	memcpy(cfg->deviceid, temp_gpu_workaround, MAX_DEVICE);
+	if (errorflag) {
+		static char * excepErr = "Exception occured while running";
+		*err = excepErr;
+		return -1;
+	}
 	return 0;
 }
 

@@ -468,8 +468,10 @@ void mcx_flush(Config *cfg){
 
 
 static jmp_buf  * mcx_error_jmp_buf_env = NULL;  /**< jump buffer for C-syle error handling for shared libray*/
-
-/**
+#ifdef _OPENMP
+#pragma omp threadprivate(mcx_error_jmp_buf_env)
+#endif
+												 /**
 * @brief Function to set error handler
 *
 * @param[in] bufp: pointer to the jmp_buf error handling code
