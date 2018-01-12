@@ -1,8 +1,17 @@
-﻿import ctypes.util
+﻿import ctypes
+import os
+import platform
 import numpy as np
 
-_libname = ctypes.util.find_library('libmcx')
-_lib = ctypes.CDLL(_libname)
+if platform.system() == 'Windows':
+    _libname = 'libmcx.dll'
+elif platform.system() == 'Darwin':
+    _libname = 'libmcx.dylib'
+else:
+    _libname = 'libmcx.so'
+
+_libpath = os.path.join(os.path.dirname(__file__), _libname)
+_lib = ctypes.CDLL(_libpath)
 
 _create_config = _lib.mcx_create_config
 _create_config.restype = ctypes.c_void_p
