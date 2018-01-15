@@ -94,18 +94,19 @@ class MCX:
 
     def run(self, nout):
         err = ctypes.c_char_p()
-        if _run_simulation(self._cfg, nout, ctypes.byref(err)) != 0:
-            excep = 'RunTime error: "{}"'.format(err.value.decode('ASCII') if err.value else "Unknown Error")
+        flag = _run_simulation(self._cfg, nout, ctypes.byref(err))
+        if flag != 0:
+            excep = 'RunTime error {}: "{}"'.format(flag, err.value.decode('ASCII') if err.value else "Unknown Error")
             raise Exception(excep)
         outs = [self.exportfield]
-        if nout >= 5:
-            outs.append(self.exportdebugdata)
-        if nout >= 4:
-            outs.append(self.seeddata)
-        if nout >= 3:
-            outs.append(self.vol)
         if nout >= 2:
             outs.append(self.exportdetected)
+        if nout >= 3:
+            outs.append(self.vol)
+        if nout >= 4:
+            outs.append(self.seeddata)
+        if nout >= 5:
+            outs.append(self.exportdebugdata)
         return outs
 
     def __del__(self):

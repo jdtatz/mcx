@@ -21,7 +21,7 @@ MEX=mex
 AR=$(CC)
 
 BINARY=mcx
-SLIB=mcx.so
+SLIB=libmcx.so
 OUTPUT_DIR=$(MCXDIR)/bin
 
 DOXY       := doxygen

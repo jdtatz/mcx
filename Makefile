@@ -5,7 +5,7 @@
 ############################################################
 
 PKGNAME=mcx
-LIBNAME=mcx.so
+LIBNAME=libmcx.so
 VERSION=2017.7
 SOURCE=src
 GUI=mcxstudio
@@ -28,6 +28,9 @@ rpm:
 	-package/mcxpkg/mcxrpmcopy.sh  $(PKGNAME) $(VERSION)
 	cd rpmroot && tar zcvf $(PKGNAME)-$(VERSION).tar.gz $(PKGNAME) ; \
 	rpmbuild --define="_topdir rpmroot/rpm" -ta $(PKGNAME)-$(VERSION).tar.gz
+pymcx: bin/$(LIBNAME)
+    -cp bin/$(LIBNAME) pymcx/$(LIBNAME)
+    -python3 setup.py bdist_wheel
 clean:
 	-$(MAKE) -C $(SOURCE) clean
 	-$(MAKE) -C $(GUI) clean
