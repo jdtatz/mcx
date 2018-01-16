@@ -31,23 +31,6 @@ _run_simulation = _lib.mcx_wrapped_run_simulation
 _run_simulation.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.POINTER(ctypes.c_char_p)]
 
 
-def _converter(v):
-    if v is True or v is False:
-        return ctypes.byref(ctypes.c_char(v)), b"char", 0, None, b'C'
-    elif isinstance(v, int):
-        return ctypes.byref(ctypes.c_int(v)), b"int", 0, None, b'C'
-    elif isinstance(v, float):
-        return ctypes.byref(ctypes.c_float(v)), b"float", 0, None, b'C'
-    elif isinstance(v, str):
-        return ctypes.c_char_p(v.encode('ASCII')), b"string", 1, ctypes.pointer(ctypes.c_int(len(v)+1)), b'C'
-    elif isinstance(v, np.ndarray):
-        if not v.flags.f_contiguous and not v.flags.c_contiguous:
-            raise Exception('Numpy arrays must be contiguous')
-        return v.ctypes, str(v.dtype).encode('ASCII'), v.ndim, (ctypes.c_int*v.ndim)(*v.shape), v.flags.f_contiguous and b'F' or b'C'
-    else:
-        raise Exception("Only Booleans, Integers, Floats, and numpy Arrays may be passed.")
-
-
 
 class MCX:
     def __init__(self, **kws):
@@ -55,12 +38,37 @@ class MCX:
         for key, val in kws.items():
             setattr(self, key, val)
 
-    def __setattr__(self, key, value):
+    def __setattr__(self, key, v):
+        ndim, dims, order = 0, None, b'C'
+        if v is True or v is False:
+            ptr = ctypes.byref(ctypes.c_char(v))
+            dtype = b"char"
+        elif isinstance(v, int):
+            ptr = ctypes.byref(ctypes.c_int(v))
+            dtype = b"int"
+        elif isinstance(v, float):
+            ptr =  ctypes.byref(ctypes.c_float(v))
+            dtype = b"float"
+        elif isinstance(v, str):
+            ptr = ctypes.c_char_p(v.encode('ASCII'))
+            dtype = b"string"
+            ndim = 1
+            dims = ctypes.pointer(ctypes.c_int(len(v)+1))
+        elif isinstance(v, np.ndarray):
+            if not v.flags.f_contiguous and not v.flags.c_contiguous:
+                raise Exception('Numpy arrays must be contiguous')
+            ptr = v.ctypes
+            dtype = str(v.dtype).encode('ASCII')
+            ndim = v.ndim
+            dims = (ctypes.c_int*v.ndim)(*v.shape)
+            order = v.flags.f_contiguous and b'F' or b'C'
+        else:
+            raise Exception("Only Booleans, Integers, Floats, Strings, and numpy Arrays may be passed.")
         err = ctypes.c_char_p()
-        if _set_field(self._cfg, key.encode('ASCII'), *_converter(value), ctypes.byref(err)) != 0:
-            excep = 'Issue with setting "{}" to ({}) with error "{}".'.format(key, value, err.value.decode('ASCII') if err.value else "Unknown Error")
+        if _set_field(self._cfg, key.encode('ASCII'), ptr, dtype, ndim, dims, order, ctypes.byref(err)) != 0:
+            excep = 'Issue with setting "{}" to ({}) with error "{}".'.format(key, v, err.value.decode('ASCII') if err.value else "Unknown Error")
             raise Exception(excep)
-        super().__setattr__(key, value)
+        super().__setattr__(key, v)
 
     def __getattr__(self, key):
         err = ctypes.c_char_p()

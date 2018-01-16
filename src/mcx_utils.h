@@ -214,6 +214,7 @@ extern "C" {
 void mcx_savedata(float *dat, size_t len, Config *cfg);
 void mcx_savenii(float *dat, size_t len, char* name, int type32bit, int outputformatid, Config *cfg);
 void mcx_set_error_handler(jmp_buf * bufp);
+char * mcx_get_error_message();
 void mcx_error(const int id,const char *msg,const char *file,const int linenum);
 void mcx_loadconfig(FILE *in, Config *cfg);
 void mcx_saveconfig(FILE *in, Config *cfg);

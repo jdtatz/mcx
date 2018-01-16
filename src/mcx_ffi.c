@@ -36,21 +36,17 @@ void mcx_destroy_config(Config * cfg){
 
 #define SET_VECTOR_HELPER(DST, SRC) for(uint i=0; i < dims[0]; i++){DST[i] = SRC[i];}
 
-#define SET_MATRIX_C2C(DST, SRC) for(uint i=0; i < dims[0]; i++){for(uint j=0; j < dims[1]; j++){DST[i*dims[1]+j]=SRC[i*dims[1]+j];}}
-#define SET_MATRIX_C2F(DST, SRC) for(uint i=0; i < dims[0]; i++){for(uint j=0; j < dims[1]; j++){DST[j*dims[0]+i]=SRC[i*dims[1]+j];}}
-#define SET_MATRIX_F2C(DST, SRC) for(uint j=0; j < dims[1]; j++){for(uint i=0; i < dims[0]; i++){DST[i*dims[1]+j]=SRC[j*dims[0]+i];}}
-#define SET_MATRIX_F2F(DST, SRC) for(uint j=0; j < dims[1]; j++){for(uint i=0; i < dims[0]; i++){DST[j*dims[0]+i]=SRC[j*dims[0]+i];}}
+#define INDEX_2D_C(i, j) (i*dims[1]+j)
+#define INDEX_2D_F(i, j) (i+j*dims[0])
+#define SET_MATRIX_LOOP(DST, SRC, DST_ORD, SRC_ORD) for(uint i=0; i < dims[0]; i++){for(uint j=0; j < dims[1]; j++){DST[INDEX_2D_##DST_ORD(i, j)]=SRC[INDEX_2D_##SRC_ORD(i, j)];}}
+#define SET_MATRIX_2C(DST, SRC) if(*order=='C') {SET_MATRIX_LOOP(DST, SRC, C, C)} else {SET_MATRIX_LOOP(DST, SRC, C, F)}
+#define SET_MATRIX_2F(DST, SRC) if(*order=='F') {SET_MATRIX_LOOP(DST, SRC, F, F)} else {SET_MATRIX_LOOP(DST, SRC, F, C)}
 
-#define SET_MATRIX_2C(DST, SRC) if(*order=='C') {SET_MATRIX_C2C(DST, SRC)} else {SET_MATRIX_F2C(DST, SRC)}
-#define SET_MATRIX_2F(DST, SRC) if(*order=='F') {SET_MATRIX_F2F(DST, SRC)} else {SET_MATRIX_C2F(DST, SRC)}
-
-#define SET_VOL_C2C(DST, SRC) for(uint i=0; i < dims[0]; i++){for(uint j=0; j < dims[1]; j++){for(uint k=0; k < dims[2]; k++){DST[i*dims[1]*dims[2]+j*dims[2]+k]=SRC[i*dims[1]*dims[2]+j*dims[2]+k];}}}
-#define SET_VOL_C2F(DST, SRC) for(uint i=0; i < dims[0]; i++){for(uint j=0; j < dims[1]; j++){for(uint k=0; k < dims[2]; k++){DST[k*dims[0]*dims[1]+j*dims[0]+i]=SRC[i*dims[1]*dims[2]+j*dims[2]+k];}}}
-#define SET_VOL_F2C(DST, SRC) for(uint k=0; k < dims[2]; k++){for(uint j=0; j < dims[1]; j++){for(uint i=0; i < dims[0]; i++){DST[i*dims[1]*dims[2]+j*dims[2]+k]=SRC[k*dims[0]*dims[1]+j*dims[0]+i];}}}
-#define SET_VOL_F2F(DST, SRC) for(uint k=0; k < dims[2]; k++){for(uint j=0; j < dims[1]; j++){for(uint i=0; i < dims[0]; i++){DST[k*dims[0]*dims[1]+j*dims[0]+i]=SRC[k*dims[0]*dims[1]+j*dims[0]+i];}}}
-
-#define SET_VOL_2C(DST, SRC) if(*order=='C') {SET_VOL_C2C(DST, SRC)} else {SET_VOL_F2C(DST, SRC)}
-#define SET_VOL_2F(DST, SRC) if(*order=='F') {SET_VOL_F2F(DST, SRC)} else {SET_VOL_C2F(DST, SRC)}
+#define INDEX_3D_C(i, j, k) (i*dims[1]*dims[2]+j*dims[2]+k)
+#define INDEX_3D_F(i, j, k) (i+j*dims[0]+k*dims[0]*dims[1])
+#define SET_VOL_LOOP(DST, SRC, DST_ORD, SRC_ORD) for(uint i=0; i < dims[0]; i++){for(uint j=0; j < dims[1]; j++){for(uint k=0; k < dims[2]; k++){DST[INDEX_3D_##DST_ORD(i, j, k)]=SRC[INDEX_3D_##SRC_ORD(i, j, k)];}}}
+#define SET_VOL_2C(DST, SRC) if(*order=='C') {SET_VOL_LOOP(DST, SRC, C, C)} else {SET_VOL_LOOP(DST, SRC, C, F)}
+#define SET_VOL_2F(DST, SRC) if(*order=='F') {SET_VOL_LOOP(DST, SRC, F, F)} else {SET_VOL_LOOP(DST, SRC, F, C)}
 
 #define TYPE_SAFE_PTR_SETTER(DST, SETTER) \
 if (strcmp(dtype, "char") == 0) {\
@@ -466,6 +462,7 @@ int mcx_wrapped_run_simulation(Config *cfg, int nout, char**err) {
     GPUInfo *gpuinfo;
 	static char * exceptionErr = "MCX Terminated due to an exception!";
 	int threadid = 0, errorflag = 0;
+	char *errors[MAX_DEVICE];
 	int activedev = mcx_list_gpu(cfg, &gpuinfo);
     if(activedev == 0){
         static char * noGpuErr = "No active GPU device found";
@@ -480,7 +477,7 @@ int mcx_wrapped_run_simulation(Config *cfg, int nout, char**err) {
     initialize_output(cfg, nout);
 #ifdef _OPENMP
 	omp_set_num_threads(activedev);
-#pragma omp parallel shared(errorflag)
+#pragma omp parallel shared(errorflag, errors)
 	{
 		threadid = omp_get_thread_num();
 #endif
@@ -488,8 +485,10 @@ int mcx_wrapped_run_simulation(Config *cfg, int nout, char**err) {
 		if (setjmp(errHandler) == 0) {
 			mcx_set_error_handler(&errHandler);
 			mcx_run_simulation(cfg, gpuinfo);
+			errors[threadid] = NULL;
 		} else {
 			errorflag++;
+			errors[threadid] = mcx_get_error_message();
 		}
 		mcx_set_error_handler(NULL);
 #ifdef _OPENMP
@@ -498,8 +497,17 @@ int mcx_wrapped_run_simulation(Config *cfg, int nout, char**err) {
 	mcx_cleargpuinfo(&gpuinfo);
 	memcpy(cfg->deviceid, temp_gpu_workaround, MAX_DEVICE);
 	if (errorflag) {
-		static char * excepErr = "Exception occured while running";
-		*err = excepErr;
+		size_t len = 0;
+		*err = malloc(1024);
+		*err[1023] = '\0';
+		for (int i = 0, j=0; i < activedev && j < errorflag; i++) {
+			if (errors[i] != NULL) {
+				strncpy(*err+len, errors[i], 1023-len);
+				len += strlen(errors[i]);
+				free(errors[i]);
+				j++;
+			}
+		}
 		return -1;
 	}
 	return 0;
