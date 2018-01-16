@@ -32,27 +32,7 @@ void mcx_destroy_config(Config * cfg){
     free(cfg);
 }
 
-#define SET_SCALAR_FIELD(NAME, TYPEVAL) if(ndim != 0) {*err=ndimErr; return -1;} cfg->NAME = TYPEVAL;
-
-#define SET_VEC3_FIELD(NAME, TYPE) if(strcmp(dtype, #TYPE) != 0) {*err=typeErr; return -1;} \
-if(ndim != 1){*err=ndimErr; return -1;} if(dims[0] != 3){*err=dimsErr; return -1;} \
- cfg->NAME.x = ((TYPE*)value)[0]; cfg->NAME.y = ((TYPE*)value)[1]; cfg->NAME.z = ((TYPE*)value)[2];
-
-#define SET_VEC4_FIELD(NAME, TYPE) if(strcmp(dtype, #TYPE) != 0) {*err=typeErr; return -1;} \
-if(ndim != 1){*err=ndimErr; return -1;} if(dims[0] != 4){*err=dimsErr; return -1;} \
- cfg->NAME.x = ((TYPE*)value)[0]; cfg->NAME.y = ((TYPE*)value)[1]; cfg->NAME.z = ((TYPE*)value)[2]; \
- cfg->NAME.w = ((TYPE*)value)[3];
-
-#define SET_VEC34_FIELD(NAME, TYPE) if(strcmp(dtype, #TYPE) != 0) {*err=typeErr; return -1;} \
-if(ndim != 1){*err=ndimErr; return -1;} if(dims[0] != 3 && dims[0] != 4){*err=dimsErr; return -1;} \
- cfg->NAME.x = ((TYPE*)value)[0]; cfg->NAME.y = ((TYPE*)value)[1]; cfg->NAME.z = ((TYPE*)value)[2]; \
- if(dims[0] == 4) {cfg->NAME.w = ((TYPE*)value)[3];}
-
-#define IF_SCALAR_FIELD(NAME, TYPEVAL) if (strcmp(key, #NAME) == 0) {SET_SCALAR_FIELD(NAME, TYPEVAL);}
-#define ELIF_SCALAR_FIELD(NAME, TYPEVAL) else IF_SCALAR_FIELD(NAME, TYPEVAL)
-#define ELIF_VEC3_FIELD(NAME, TYPE) else if (strcmp(key, #NAME) == 0) {SET_VEC3_FIELD(NAME, TYPE);}
-#define ELIF_VEC4_FIELD(NAME, TYPE) else if (strcmp(key, #NAME) == 0) {SET_VEC4_FIELD(NAME, TYPE);}
-#define ELIF_VEC34_FIELD(NAME, TYPE) else if (strcmp(key, #NAME) == 0) {SET_VEC34_FIELD(NAME, TYPE);}
+#define SET_SCALAR_HELPER(DST, SRC) {DST = *SRC;}
 
 #define SET_VECTOR_HELPER(DST, SRC) for(uint i=0; i < dims[0]; i++){DST[i] = SRC[i];}
 
@@ -74,23 +54,29 @@ if(ndim != 1){*err=ndimErr; return -1;} if(dims[0] != 3 && dims[0] != 4){*err=di
 
 #define TYPE_SAFE_PTR_SETTER(DST, SETTER) \
 if (strcmp(dtype, "char") == 0) {\
-SETTER(DST, charP)\
+SETTER(DST, ((char*)value))\
 } else if (strcmp(dtype, "int") == 0 || (sizeof(int) == 4 && strcmp(dtype, "int32") == 0) || (sizeof(int) == 8 && strcmp(dtype, "int64") == 0)) {\
-SETTER(DST, intP)\
+SETTER(DST, ((int*)value))\
 } else if (strcmp(dtype, "uint") == 0 || (sizeof(uint) == 4 && strcmp(dtype, "uint32") == 0) || (sizeof(uint) == 8 && strcmp(dtype, "uint64") == 0)) {\
-SETTER(DST, uintP)\
+SETTER(DST, ((uint*)value))\
 } else if (strcmp(dtype, "float") == 0 || strcmp(dtype, "float32") == 0) {\
-SETTER(DST, floatP)\
+SETTER(DST, ((float*)value))\
 } else if (strcmp(dtype, "double") == 0 || strcmp(dtype, "float64") == 0) {\
-SETTER(DST, doubleP)\
+SETTER(DST, ((double*)value))\
 } else {\
 	*err = typeErr;\
 	return -1;\
 }
 
+#define SET_SCALAR(DST) TYPE_SAFE_PTR_SETTER(DST, SET_SCALAR_HELPER)
 #define SET_VECTOR(DST) TYPE_SAFE_PTR_SETTER(DST, SET_VECTOR_HELPER)
 #define SET_MATRIX(DST, ORD) TYPE_SAFE_PTR_SETTER(DST, SET_MATRIX_2##ORD)
 #define SET_VOL(DST, ORD) TYPE_SAFE_PTR_SETTER(DST, SET_VOL_2##ORD)
+
+#define ELIF_SCALAR(NAME) else if (strcmp(key, #NAME) == 0) {if(ndim != 0) {*err=ndimErr; return -1;} SET_SCALAR(cfg->NAME);}
+#define ELIF_VEC3(NAME, TYPE) else if (strcmp(key, #NAME) == 0) {if (ndim != 1) {*err = ndimErr;return -1;} else if (dims[0] != 3) {*err = dimsErr;	return -1;} SET_VECTOR(((TYPE*)&cfg->NAME));}
+#define ELIF_VEC4(NAME, TYPE) else if (strcmp(key, #NAME) == 0) {if (ndim != 1) {*err = ndimErr;return -1;} else if (dims[0] != 4) {*err = dimsErr;	return -1;} SET_VECTOR(((TYPE*)&cfg->NAME));}
+#define ELIF_VEC34(NAME, TYPE) else if (strcmp(key, #NAME) == 0) {if (ndim != 1) {*err = ndimErr;return -1;} else if (dims[0] != 3 && dims[0] != 4) {*err = dimsErr; return -1;} SET_VECTOR(((TYPE*)&cfg->NAME));}
 
 
 int mcx_set_field(Config * cfg, const char *key, const void *value, const char * dtype, int ndim, const unsigned*dims, const char *order, const char**err) {
@@ -101,48 +87,6 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
     static const char * strLenErr = "Too long of a string";
 	static int seedbyte; // temp workaround
 
-	char charV, *charP = value;
-	int intV, *intP = value;
-	unsigned uintV, *uintP = value;
-	float floatV, *floatP = value;
-	double doubleV, *doubleP = value;
-	if (ndim == 0) {
-		if (strcmp(dtype, "char") == 0) {
-			charV = *((char*)value);
-			intV = (int)charV;
-			uintV = (unsigned int)charV;
-			floatV = (float)charV;
-			doubleV = (double)doubleV;
-		} else if (strcmp(dtype, "int") == 0 || (sizeof(int) == 4 && strcmp(dtype, "int32") == 0) || (sizeof(int) == 8 && strcmp(dtype, "int64") == 0)) {
-			intV = *((int*)value);
-			charV = (char)intV;
-			uintV = (unsigned int)intV;
-			floatV = (float)intV;
-			doubleV = (double)doubleV;
-		} else if (strcmp(dtype, "uint") == 0 || (sizeof(uint) == 4 && strcmp(dtype, "uint32") == 0) || (sizeof(uint) == 8 && strcmp(dtype, "uint64") == 0)) {
-			uintV = *((unsigned int*)value);
-			charV = (char)uintV;
-			intV = (int)uintV;
-			floatV = (float)uintV;
-			doubleV = (double)doubleV;
-		} else if (strcmp(dtype, "float") == 0 || strcmp(dtype, "float32") == 0) {
-			floatV = *((float*)value);
-			charV = (char)floatV;
-			intV = (int)floatV;
-			uintV = (unsigned int)floatV;
-			doubleV = (double)doubleV;
-		} else if (strcmp(dtype, "double") == 0 || strcmp(dtype, "float64") == 0) {
-			doubleV = *((double*)value);
-			charV = (char)doubleV;
-			intV = (int)doubleV;
-			uintV = (unsigned int)doubleV;
-			floatV = (float)doubleV;
-		}  else {
-			*err = typeErr;
-			return -1;
-		}
-	}
-
 	if (ndim >= 2 && (*order != 'C' && *order != 'F')) {
 		*err = ordErr;
 		return -1;
@@ -151,45 +95,49 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
 	if (strcmp(key, "nphoton") == 0) {
 		if (cfg->replay.seed != NULL)
 			return 0;
-		SET_SCALAR_FIELD(nphoton, intV)
+		else if (ndim != 0) { 
+			*err = ndimErr; 
+			return -1; 
+		}
+		SET_SCALAR(cfg->nphoton)
 	}
-    ELIF_SCALAR_FIELD(nblocksize, uintV)
-    ELIF_SCALAR_FIELD(nthread, uintV)
-    ELIF_SCALAR_FIELD(tstart, floatV)
-    ELIF_SCALAR_FIELD(tstep, floatV)
-    ELIF_SCALAR_FIELD(tend, floatV)
-    ELIF_SCALAR_FIELD(maxdetphoton, uintV)
-    ELIF_SCALAR_FIELD(sradius, floatV)
-    ELIF_SCALAR_FIELD(maxgate, uintV)
-    ELIF_SCALAR_FIELD(respin, uintV)
-    ELIF_SCALAR_FIELD(isreflect, charV)
-    ELIF_SCALAR_FIELD(isref3, charV)
-    ELIF_SCALAR_FIELD(isrefint, charV)
-    ELIF_SCALAR_FIELD(isnormalized, charV)
-    ELIF_SCALAR_FIELD(isgpuinfo, charV)
-    ELIF_SCALAR_FIELD(issrcfrom0, charV)
-    ELIF_SCALAR_FIELD(autopilot, charV)
-    ELIF_SCALAR_FIELD(minenergy, floatV)
-    ELIF_SCALAR_FIELD(unitinmm, floatV)
-    ELIF_SCALAR_FIELD(reseedlimit, uintV)
-    ELIF_SCALAR_FIELD(printnum, uintV)
-    ELIF_SCALAR_FIELD(voidtime, intV)
-    ELIF_SCALAR_FIELD(issaveseed, charV)
-    ELIF_SCALAR_FIELD(issaveref, charV)
-    ELIF_SCALAR_FIELD(issaveexit, charV)
-    ELIF_SCALAR_FIELD(isrowmajor, charV)
-    ELIF_SCALAR_FIELD(replaydet, intV)
-    ELIF_SCALAR_FIELD(faststep, charV)
-    ELIF_SCALAR_FIELD(maxvoidstep, intV)
-    ELIF_SCALAR_FIELD(maxjumpdebug, uintV)
-    ELIF_SCALAR_FIELD(gscatter, uintV)
-    ELIF_VEC3_FIELD(srcpos, float)
-    ELIF_VEC34_FIELD(srcdir, float)
-    ELIF_VEC3_FIELD(steps, float)
-    ELIF_VEC3_FIELD(crop0, unsigned)
-    ELIF_VEC3_FIELD(crop1, unsigned)
-    ELIF_VEC4_FIELD(srcparam1, float)
-    ELIF_VEC4_FIELD(srcparam2, float)
+	ELIF_SCALAR(nblocksize)
+	ELIF_SCALAR(nthread)
+	ELIF_SCALAR(tstart)
+	ELIF_SCALAR(tstep)
+	ELIF_SCALAR(tend)
+	ELIF_SCALAR(maxdetphoton)
+	ELIF_SCALAR(sradius)
+	ELIF_SCALAR(maxgate)
+	ELIF_SCALAR(respin)
+	ELIF_SCALAR(isreflect)
+	ELIF_SCALAR(isref3)
+	ELIF_SCALAR(isrefint)
+	ELIF_SCALAR(isnormalized)
+	ELIF_SCALAR(isgpuinfo)
+	ELIF_SCALAR(issrcfrom0)
+	ELIF_SCALAR(autopilot)
+	ELIF_SCALAR(minenergy)
+	ELIF_SCALAR(unitinmm)
+	ELIF_SCALAR(reseedlimit)
+	ELIF_SCALAR(printnum)
+	ELIF_SCALAR(voidtime)
+	ELIF_SCALAR(issaveseed)
+	ELIF_SCALAR(issaveref)
+	ELIF_SCALAR(issaveexit)
+	ELIF_SCALAR(isrowmajor)
+	ELIF_SCALAR(replaydet)
+	ELIF_SCALAR(faststep)
+	ELIF_SCALAR(maxvoidstep)
+	ELIF_SCALAR(maxjumpdebug)
+	ELIF_SCALAR(gscatter)
+    ELIF_VEC3(srcpos, float)
+    ELIF_VEC34(srcdir, float)
+    ELIF_VEC3(steps, float)
+    ELIF_VEC3(crop0, unsigned)
+    ELIF_VEC3(crop1, unsigned)
+    ELIF_VEC4(srcparam1, float)
+    ELIF_VEC4(srcparam2, float)
     else if (strcmp(key, "vol") == 0) {
 		if (ndim != 3) {
 			*err = ndimErr;
@@ -359,7 +307,7 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
 		}
     } else if(strcmp(key,"seed")==0){
         if(ndim == 0){
-            cfg->seed = intV;
+            cfg->seed = *((int*)value);
         } else if(ndim == 2){
 			if(dims[0]!=sizeof(float)*RAND_WORD_LEN){
 				static char * seedErr = "the row number of cfg.seed does not match RNG seed byte-length";
@@ -384,7 +332,7 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
             }
             memcpy(cfg->deviceid, value, MAX_DEVICE);
         } else if(ndim == 0){
-            cfg->gpuid = intV;
+            cfg->gpuid = *((int*)value);
             memset(cfg->deviceid,0,MAX_DEVICE);
             static char * gpuidErr = "GPU id can not be more than 256";
             if(cfg->gpuid<MAX_DEVICE){
