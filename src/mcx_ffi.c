@@ -411,45 +411,45 @@ void* mcx_get_field(Config *cfg, const char *key, char** dtype, int* ndim, unsig
 		dims[0] = cfg->medianum + 1 + cfg->issaveexit * 6;
 		dims[1] = cfg->detectedcount;
 		return cfg->exportdetected;
-	} else if (strcmp(key, "seeddata")) {
+	} else if (strcmp(key, "seeddata") == 0) {
 		*dtype = uint8Type;
 		*ndim = 2;
 		dims[0] = (cfg->issaveseed>0)*RAND_WORD_LEN*sizeof(float);
 		dims[1] = cfg->detectedcount;
 		return cfg->seeddata;
-	} else if (strcmp(key, "exportdebugdata")) {
+	} else if (strcmp(key, "exportdebugdata") == 0) {
 		*dtype = floatType;
 		*ndim = 2;
 		dims[0] = MCX_DEBUG_REC_LEN;
 		dims[1] = cfg->debugdatalen;
 		return cfg->exportdebugdata;
-	} else if (strcmp(key, "runtime")) {
+	} else if (strcmp(key, "runtime") == 0) {
 		*dtype = uintType;
 		*ndim = 0;
 		return &cfg->runtime;
-	} else if (strcmp(key, "nphoton")) {
+	} else if (strcmp(key, "nphoton") == 0) {
 		*dtype = intType;
 		*ndim = 0;
 		return &cfg->nphoton;
-	} else if (strcmp(key, "energytot")) {
+	} else if (strcmp(key, "energytot") == 0) {
 		*dtype = doubleType;
 		*ndim = 0;
 		return &cfg->energytot;
-	} else if (strcmp(key, "energyabs")) {
+	} else if (strcmp(key, "energyabs") == 0) {
 		*dtype = doubleType;
 		*ndim = 0;
 		return &cfg->energyabs;
-	} else if (strcmp(key, "energyabs")) {
+	} else if (strcmp(key, "normalizer") == 0) {
 		*dtype = floatType;
 		*ndim = 0;
 		return &cfg->normalizer;
-	} else if (strcmp(key, "workload")) {
+	} else if (strcmp(key, "workload") == 0) {
 		*dtype = floatType;
 		*ndim = 1;
 		dims[0] = MAX_DEVICE;
 		return &cfg->workload;
 	}
-	static const char * invalidErr = "Not yet implemnted.";
+	static char * invalidErr = "Not yet implemnted.";
 	*err = invalidErr;
 	return NULL;
 }
