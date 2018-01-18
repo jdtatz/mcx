@@ -430,6 +430,13 @@ void* mcx_get_field(Config *cfg, const char *key, char** dtype, int* ndim, unsig
         dims[0] = cfg->medianum + 1 + cfg->issaveexit * 6;
         dims[1] = cfg->detectedcount;
         return cfg->exportdetected;
+    } else if (strcmp(key, "vol") == 0) {
+        *dtype = uintType;
+        *ndim = 3;
+        dims[0] = cfg->dim.x;
+        dims[1] = cfg->dim.y;
+        dims[2] = cfg->dim.z;
+        return cfg->vol;
     } else if (strcmp(key, "seeddata") == 0) {
         *dtype = uint8Type;
         *ndim = 2;
@@ -468,7 +475,7 @@ void* mcx_get_field(Config *cfg, const char *key, char** dtype, int* ndim, unsig
         dims[0] = MAX_DEVICE;
         return &cfg->workload;
     }
-    static char * invalidErr = "Not yet implemnted.";
+    static char * invalidErr = "Not yet implemented.";
     *err = invalidErr;
     return NULL;
 }

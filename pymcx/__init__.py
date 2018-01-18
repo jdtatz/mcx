@@ -70,7 +70,7 @@ class MCX:
             raise Exception(excep)
         super().__setattr__(key, v)
 
-    def __getattr__(self, key):
+    def get_field(self, key):
         err = ctypes.c_char_p()
         dtype, ndim, dims = ctypes.c_char_p(), ctypes.c_int(), (ctypes.c_int*4)()
         temp = _get_field(self._cfg, key.encode('ASCII'), ctypes.byref(dtype), ctypes.byref(ndim), dims, ctypes.byref(err))
@@ -100,22 +100,24 @@ class MCX:
             size = np.prod(shape)
             return np.ctypeslib.as_array(ptr, (size,)).reshape(shape, order='F').copy()
 
-    def run(self, nout):
+    def run(self, nout=2):
         err = ctypes.c_char_p()
         flag = _run_simulation(self._cfg, nout, ctypes.byref(err))
         if flag != 0:
             excep = 'RunTime error {}: "{}"'.format(flag, err.value.decode('ASCII') if err.value else "Unknown Error")
             raise Exception(excep)
-        outs = [self.exportfield]
+        fields = ["runtime", "nphoton", "energytot", "energyabs", "normalizer", "workload"]
+        if nout >= 1:
+            fields.append("exportfield")
         if nout >= 2:
-            outs.append(self.exportdetected)
+            fields.append("exportdetected")
         if nout >= 3:
-            outs.append(self.vol)
+            fields.append("vol")
         if nout >= 4:
-            outs.append(self.seeddata)
+            fields.append("seeddata")
         if nout >= 5:
-            outs.append(self.exportdebugdata)
-        return outs
+            fields.append("exportdebugdata")
+        return {field: self.get_field(field) for field in fields}
 
     def __del__(self):
         _destroy_config(self._cfg)
