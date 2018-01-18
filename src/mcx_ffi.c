@@ -23,7 +23,7 @@
 Config * mcx_create_config(){
     Config * cfg = malloc(sizeof(Config));
     mcx_initcfg(cfg);
-	cfg->parentid = mpFFI;
+    cfg->parentid = mpFFI;
     return cfg;
 }
 
@@ -60,8 +60,8 @@ SETTER(DST, ((float*)value))\
 } else if (strcmp(dtype, "double") == 0 || strcmp(dtype, "float64") == 0) {\
 SETTER(DST, ((double*)value))\
 } else {\
-	*err = typeErr;\
-	return -1;\
+    *err = typeErr;\
+    return -1;\
 }
 
 #define SET_SCALAR(DST) TYPE_SAFE_PTR_SETTER(DST, SET_SCALAR_HELPER)
@@ -70,8 +70,8 @@ SETTER(DST, ((double*)value))\
 #define SET_VOL(DST, ORD) TYPE_SAFE_PTR_SETTER(DST, SET_VOL_2##ORD)
 
 #define ELIF_SCALAR(NAME) else if (strcmp(key, #NAME) == 0) {if(ndim != 0) {*err=ndimErr; return -1;} SET_SCALAR(cfg->NAME);}
-#define ELIF_VEC3(NAME, TYPE) else if (strcmp(key, #NAME) == 0) {if (ndim != 1) {*err = ndimErr;return -1;} else if (dims[0] != 3) {*err = dimsErr;	return -1;} SET_VECTOR(((TYPE*)&cfg->NAME));}
-#define ELIF_VEC4(NAME, TYPE) else if (strcmp(key, #NAME) == 0) {if (ndim != 1) {*err = ndimErr;return -1;} else if (dims[0] != 4) {*err = dimsErr;	return -1;} SET_VECTOR(((TYPE*)&cfg->NAME));}
+#define ELIF_VEC3(NAME, TYPE) else if (strcmp(key, #NAME) == 0) {if (ndim != 1) {*err = ndimErr;return -1;} else if (dims[0] != 3) {*err = dimsErr;    return -1;} SET_VECTOR(((TYPE*)&cfg->NAME));}
+#define ELIF_VEC4(NAME, TYPE) else if (strcmp(key, #NAME) == 0) {if (ndim != 1) {*err = ndimErr;return -1;} else if (dims[0] != 4) {*err = dimsErr;    return -1;} SET_VECTOR(((TYPE*)&cfg->NAME));}
 #define ELIF_VEC34(NAME, TYPE) else if (strcmp(key, #NAME) == 0) {if (ndim != 1) {*err = ndimErr;return -1;} else if (dims[0] != 3 && dims[0] != 4) {*err = dimsErr; return -1;} SET_VECTOR(((TYPE*)&cfg->NAME));}
 
 
@@ -79,54 +79,56 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
     static const char *typeErr = "Incorrect dtype given.";
     static const char *ndimErr = "Incorrect number of dimensions given.";
     static const char *dimsErr = "Incorrect shape given.";
-	static const char *ordErr = "Order must be either 'C' or 'F'.";
+    static const char *ordErr = "Order must be either 'C' or 'F'.";
     static const char * strLenErr = "Too long of a string";
-	static int seedbyte; // temp workaround
+    static int seedbyte; // temp workaround
 
-	if (ndim >= 2 && (*order != 'C' && *order != 'F')) {
-		*err = ordErr;
-		return -1;
-	}
+    if (ndim >= 2 && (*order != 'C' && *order != 'F')) {
+        *err = ordErr;
+        return -1;
+    }
 
-	if (strcmp(key, "nphoton") == 0) {
-		if (cfg->replay.seed != NULL)
-			return 0;
-		else if (ndim != 0) { 
-			*err = ndimErr; 
-			return -1; 
-		}
-		SET_SCALAR(cfg->nphoton)
-	}
-	ELIF_SCALAR(nblocksize)
-	ELIF_SCALAR(nthread)
-	ELIF_SCALAR(tstart)
-	ELIF_SCALAR(tstep)
-	ELIF_SCALAR(tend)
-	ELIF_SCALAR(maxdetphoton)
-	ELIF_SCALAR(sradius)
-	ELIF_SCALAR(maxgate)
-	ELIF_SCALAR(respin)
-	ELIF_SCALAR(isreflect)
-	ELIF_SCALAR(isref3)
-	ELIF_SCALAR(isrefint)
-	ELIF_SCALAR(isnormalized)
-	ELIF_SCALAR(isgpuinfo)
-	ELIF_SCALAR(issrcfrom0)
-	ELIF_SCALAR(autopilot)
-	ELIF_SCALAR(minenergy)
-	ELIF_SCALAR(unitinmm)
-	ELIF_SCALAR(reseedlimit)
-	ELIF_SCALAR(printnum)
-	ELIF_SCALAR(voidtime)
-	ELIF_SCALAR(issaveseed)
-	ELIF_SCALAR(issaveref)
-	ELIF_SCALAR(issaveexit)
-	ELIF_SCALAR(isrowmajor)
-	ELIF_SCALAR(replaydet)
-	ELIF_SCALAR(faststep)
-	ELIF_SCALAR(maxvoidstep)
-	ELIF_SCALAR(maxjumpdebug)
-	ELIF_SCALAR(gscatter)
+    if (strcmp(key, "nphoton") == 0) {
+        if (cfg->replay.seed != NULL)
+            return 0;
+        else if (ndim != 0) { 
+            *err = ndimErr; 
+            return -1; 
+        }
+        SET_SCALAR(cfg->nphoton)
+    }
+    ELIF_SCALAR(nblocksize)
+    ELIF_SCALAR(nthread)
+    ELIF_SCALAR(tstart)
+    ELIF_SCALAR(tstep)
+    ELIF_SCALAR(tend)
+    ELIF_SCALAR(maxdetphoton)
+    ELIF_SCALAR(sradius)
+    ELIF_SCALAR(maxgate)
+    ELIF_SCALAR(respin)
+    ELIF_SCALAR(isreflect)
+    ELIF_SCALAR(isref3)
+    ELIF_SCALAR(isrefint)
+    ELIF_SCALAR(isnormalized)
+    ELIF_SCALAR(issave2pt)
+    ELIF_SCALAR(issavedet)
+    ELIF_SCALAR(isgpuinfo)
+    ELIF_SCALAR(issrcfrom0)
+    ELIF_SCALAR(autopilot)
+    ELIF_SCALAR(minenergy)
+    ELIF_SCALAR(unitinmm)
+    ELIF_SCALAR(reseedlimit)
+    ELIF_SCALAR(printnum)
+    ELIF_SCALAR(voidtime)
+    ELIF_SCALAR(issaveseed)
+    ELIF_SCALAR(issaveref)
+    ELIF_SCALAR(issaveexit)
+    ELIF_SCALAR(isrowmajor)
+    ELIF_SCALAR(replaydet)
+    ELIF_SCALAR(faststep)
+    ELIF_SCALAR(maxvoidstep)
+    ELIF_SCALAR(maxjumpdebug)
+    ELIF_SCALAR(gscatter)
     ELIF_VEC3(srcpos, float)
     ELIF_VEC34(srcdir, float)
     ELIF_VEC3(steps, float)
@@ -135,19 +137,19 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
     ELIF_VEC4(srcparam1, float)
     ELIF_VEC4(srcparam2, float)
     else if (strcmp(key, "vol") == 0) {
-		if (ndim != 3) {
-			*err = ndimErr;
-			return -1;
-		}
+        if (ndim != 3) {
+            *err = ndimErr;
+            return -1;
+        }
         cfg->dim.x = dims[0];
         cfg->dim.y = dims[1];
         cfg->dim.z = dims[2];
         int dimxyz=cfg->dim.x*cfg->dim.y*cfg->dim.z;
         if(cfg->vol) free(cfg->vol);
         cfg->vol = (unsigned int*)malloc(dimxyz * sizeof(unsigned int));
-		SET_VOL(cfg->vol, F)
+        SET_VOL(cfg->vol, F)
         cfg->mediabyte = sizeof(unsigned int);
-		cfg->isrowmajor = 0;
+        cfg->isrowmajor = 0;
     } else if(strcmp(key, "prop") == 0){
         if(ndim != 2){
             *err = ndimErr;
@@ -159,8 +161,8 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
         cfg->medianum = dims[0];
         if(cfg->prop) free(cfg->prop);
         cfg->prop = malloc(cfg->medianum*sizeof(Medium));
-		float * dst = cfg->prop;
-		SET_MATRIX(dst, C);
+        float * dst = cfg->prop;
+        SET_MATRIX(dst, C);
     } else if(strcmp(key, "detpos")==0){
         if(ndim != 2){
             *err = ndimErr;
@@ -172,8 +174,8 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
         cfg->detnum=dims[0];
         if(cfg->detpos) free(cfg->detpos);
         cfg->detpos = malloc(cfg->detnum*sizeof(float4));
-		float *dst = cfg->detpos;
-		SET_MATRIX(dst, C);
+        float *dst = cfg->detpos;
+        SET_MATRIX(dst, C);
     } else if(strcmp(key,"session")==0) {
         if(strcmp(dtype, "string") != 0){
             *err = typeErr;
@@ -194,7 +196,7 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
         }
         const char *srctypeid[]={"pencil","isotropic","cone","gaussian","planar","pattern","fourier","arcsine","disk","fourierx","fourierx2d","zgaussian","line","slit","pencilarray",""};
         int srctype = mcx_keylookup((char*)value,srctypeid);
-		static char * srcTypErr = "the specified source type is not supported";
+        static char * srcTypErr = "the specified source type is not supported";
         if(srctype == -1){
             *err = srcTypErr;
             return -1;
@@ -242,7 +244,7 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
         }
         if(cfg->srcpattern) free(cfg->srcpattern);
         cfg->srcpattern = malloc(dims[0]*dims[1]*sizeof(float));
-		SET_MATRIX(cfg->srcpattern, F)
+        SET_MATRIX(cfg->srcpattern, F)
     }else if(strcmp(key,"shapes")==0){
         if(strcmp(dtype, "string") != 0){
             *err = typeErr;
@@ -258,62 +260,62 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
             return -1;
         }
     } else if(strcmp(key, "detphotons")==0){
-		if (cfg->seed != SEED_FROM_FILE) {
-			static char * replayErr = "Need cfg.seed for replay, before being given 'detphotons'";
-			*err = replayErr;
-			return -1;
-		} else if (seedbyte == 0) {
-			static char * seedErr = "the seed input is empty";
-			*err = seedErr;
-			return -1;
-		} else if (strcmp(dtype, "float") != 0 && strcmp(dtype, "float32") != 0) {
-			*err = typeErr;
-			return -1;
-		} else if (ndim != 2) {
-			*err = ndimErr;
-			return -1;
-		} else if (cfg->nphoton != dims[1]) {
-			*err = dimsErr;
-			return -1;
-		} else if (*order != 'F') {  // TODO: Really unsure of this
-			*err = ordErr;
-			return -1;
-		}
+        if (cfg->seed != SEED_FROM_FILE) {
+            static char * replayErr = "Need cfg.seed for replay, before being given 'detphotons'";
+            *err = replayErr;
+            return -1;
+        } else if (seedbyte == 0) {
+            static char * seedErr = "the seed input is empty";
+            *err = seedErr;
+            return -1;
+        } else if (strcmp(dtype, "float") != 0 && strcmp(dtype, "float32") != 0) {
+            *err = typeErr;
+            return -1;
+        } else if (ndim != 2) {
+            *err = ndimErr;
+            return -1;
+        } else if (cfg->nphoton != dims[1]) {
+            *err = dimsErr;
+            return -1;
+        } else if (*order != 'F') {  // TODO: Really unsure of this
+            *err = ordErr;
+            return -1;
+        }
 
-		const float* detps = value;
-		cfg->replay.weight = (float *)malloc(cfg->nphoton * sizeof(float));
-		cfg->replay.tof = (float *)calloc(cfg->nphoton, sizeof(float));
-		cfg->nphoton = 0;
-		for (unsigned i = 0; i < dims[1]; i++) {
-			if (cfg->replaydet == 0 || cfg->replaydet == (int)(detps[i * dims[0]])) {
-				if (i != cfg->nphoton)
-					memcpy((char *)(cfg->replay.seed) + cfg->nphoton * seedbyte,
-						(char *)(cfg->replay.seed) + i * seedbyte, seedbyte);
-				cfg->replay.weight[cfg->nphoton] = 1.f;
-				cfg->replay.tof[cfg->nphoton] = 0.f;
-				for (unsigned j = 2; j < cfg->medianum + 1; j++) {
-					cfg->replay.weight[cfg->nphoton] *= expf(-cfg->prop[j - 1].mua * detps[i * dims[0] + j] * cfg->unitinmm);
-					cfg->replay.tof[cfg->nphoton] += detps[i * dims[0] + j] * cfg->unitinmm * R_C0 * cfg->prop[j - 1].n;
-				}
-				if (cfg->replay.tof[cfg->nphoton] < cfg->tstart ||
-					cfg->replay.tof[cfg->nphoton] > cfg->tend) /*need to consider -g*/
-					continue;
-				cfg->nphoton++;
-			}
-		}
+        const float* detps = value;
+        cfg->replay.weight = (float *)malloc(cfg->nphoton * sizeof(float));
+        cfg->replay.tof = (float *)calloc(cfg->nphoton, sizeof(float));
+        cfg->nphoton = 0;
+        for (unsigned i = 0; i < dims[1]; i++) {
+            if (cfg->replaydet == 0 || cfg->replaydet == (int)(detps[i * dims[0]])) {
+                if (i != cfg->nphoton)
+                    memcpy((char *)(cfg->replay.seed) + cfg->nphoton * seedbyte,
+                        (char *)(cfg->replay.seed) + i * seedbyte, seedbyte);
+                cfg->replay.weight[cfg->nphoton] = 1.f;
+                cfg->replay.tof[cfg->nphoton] = 0.f;
+                for (unsigned j = 2; j < cfg->medianum + 1; j++) {
+                    cfg->replay.weight[cfg->nphoton] *= expf(-cfg->prop[j - 1].mua * detps[i * dims[0] + j] * cfg->unitinmm);
+                    cfg->replay.tof[cfg->nphoton] += detps[i * dims[0] + j] * cfg->unitinmm * R_C0 * cfg->prop[j - 1].n;
+                }
+                if (cfg->replay.tof[cfg->nphoton] < cfg->tstart ||
+                    cfg->replay.tof[cfg->nphoton] > cfg->tend) /*need to consider -g*/
+                    continue;
+                cfg->nphoton++;
+            }
+        }
     } else if(strcmp(key,"seed")==0){
         if(ndim == 0){
             cfg->seed = *((int*)value);
         } else if(ndim == 2){
-			if(dims[0]!=sizeof(float)*RAND_WORD_LEN){
-				static char * seedErr = "the row number of cfg.seed does not match RNG seed byte-length";
+            if(dims[0]!=sizeof(float)*RAND_WORD_LEN){
+                static char * seedErr = "the row number of cfg.seed does not match RNG seed byte-length";
                 *err = seedErr;
                 return -1;
             }
             seedbyte = dims[0];
             cfg->replay.seed = malloc((dims[0]*dims[1]));
-			int * dst = cfg->replay.seed;
-			SET_MATRIX(dst, F)
+            int * dst = cfg->replay.seed;
+            SET_MATRIX(dst, F)
             cfg->seed=SEED_FROM_FILE;
             cfg->nphoton=dims[1];
         } else {
@@ -354,7 +356,7 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
             *err = dimsErr;
             return -1;
         }
-		SET_VECTOR(cfg->workload)
+        SET_VECTOR(cfg->workload)
     }else{
         static char * unkErr = "Unknown Field Given";
         *err = unkErr;
@@ -364,106 +366,106 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
 }
 
 void initialize_output(Config *cfg, int nout) {
-	cfg->issave2pt = (nout >= 1);  /** save fluence rate to the 1st output if present */
-	cfg->issavedet = (nout >= 2);  /** save detected photon data to the 2nd output if present */
-	cfg->issaveseed = (nout >= 4); /** save detected photon seeds to the 4th output if present */
+    cfg->issave2pt = (nout >= 1);  /** save fluence rate to the 1st output if present */
+    cfg->issavedet = (nout >= 2);  /** save detected photon data to the 2nd output if present */
+    cfg->issaveseed = (nout >= 4); /** save detected photon seeds to the 4th output if present */
 #if defined(USE_MT_RAND)
-	cfg->issaveseed = 0;
+    cfg->issaveseed = 0;
 #endif
-	if (nout >= 1) {
+    if (nout >= 1) {
         if(cfg->exportfield) free(cfg->exportfield);
-		int fieldlen = cfg->dim.x*cfg->dim.y*cfg->dim.z*(int)((cfg->tend - cfg->tstart) / cfg->tstep + 0.5);
-		cfg->exportfield = (float*)calloc(fieldlen, sizeof(float));
-	}
-	if (nout >= 2) {
+        int fieldlen = cfg->dim.x*cfg->dim.y*cfg->dim.z*(int)((cfg->tend - cfg->tstart) / cfg->tstep + 0.5);
+        cfg->exportfield = (float*)calloc(fieldlen, sizeof(float));
+    }
+    if (nout >= 2) {
         if(cfg->exportdetected) free(cfg->exportdetected);
-		cfg->exportdetected = (float*)malloc((cfg->medianum + 1 + cfg->issaveexit * 6)*cfg->maxdetphoton*sizeof(float));
-	}
-	if (nout >= 4) {
+        cfg->exportdetected = (float*)malloc((cfg->medianum + 1 + cfg->issaveexit * 6)*cfg->maxdetphoton*sizeof(float));
+    }
+    if (nout >= 4) {
         if(cfg->seeddata) free(cfg->seeddata);
-		cfg->seeddata = malloc(cfg->maxdetphoton*sizeof(float)*RAND_WORD_LEN);
-	}
-	if (nout >= 5) {
+        cfg->seeddata = malloc(cfg->maxdetphoton*sizeof(float)*RAND_WORD_LEN);
+    }
+    if (nout >= 5) {
         if(cfg->exportdebugdata) free(cfg->exportdebugdata);
-		cfg->exportdebugdata = (float*)malloc(cfg->maxjumpdebug*sizeof(float)*MCX_DEBUG_REC_LEN);
-	}
+        cfg->exportdebugdata = (float*)malloc(cfg->maxjumpdebug*sizeof(float)*MCX_DEBUG_REC_LEN);
+    }
 }
 
 
 void* mcx_get_field(Config *cfg, const char *key, char** dtype, int* ndim, unsigned *dims, const char**err) {
-	static char * intType = "int";
-	static char * uintType = "uint";
-	static char * floatType = "float";
-	static char * doubleType = "double";
-	static char * uint8Type = "uint8";
+    static char * intType = "int";
+    static char * uintType = "uint";
+    static char * floatType = "float";
+    static char * doubleType = "double";
+    static char * uint8Type = "uint8";
 
-	if (strcmp(key, "exportfield") == 0) {
-		*dtype = floatType;
-		*ndim = 4;
-		dims[0] = cfg->dim.x;
-		dims[1] = cfg->dim.y;
-		dims[2] = cfg->dim.z;
-		dims[3] = (cfg->tend - cfg->tstart) / cfg->tstep + 0.5;
-		return cfg->exportfield;
-	} else if (strcmp(key, "exportdetected") == 0) {
-		*dtype = floatType;
-		*ndim = 2;
-		dims[0] = cfg->medianum + 1 + cfg->issaveexit * 6;
-		dims[1] = cfg->detectedcount;
-		return cfg->exportdetected;
-	} else if (strcmp(key, "seeddata") == 0) {
-		*dtype = uint8Type;
-		*ndim = 2;
-		dims[0] = (cfg->issaveseed>0)*RAND_WORD_LEN*sizeof(float);
-		dims[1] = cfg->detectedcount;
-		return cfg->seeddata;
-	} else if (strcmp(key, "exportdebugdata") == 0) {
-		*dtype = floatType;
-		*ndim = 2;
-		dims[0] = MCX_DEBUG_REC_LEN;
-		dims[1] = cfg->debugdatalen;
-		return cfg->exportdebugdata;
-	} else if (strcmp(key, "runtime") == 0) {
-		*dtype = uintType;
-		*ndim = 0;
-		return &cfg->runtime;
-	} else if (strcmp(key, "nphoton") == 0) {
-		*dtype = intType;
-		*ndim = 0;
-		return &cfg->nphoton;
-	} else if (strcmp(key, "energytot") == 0) {
-		*dtype = doubleType;
-		*ndim = 0;
-		return &cfg->energytot;
-	} else if (strcmp(key, "energyabs") == 0) {
-		*dtype = doubleType;
-		*ndim = 0;
-		return &cfg->energyabs;
-	} else if (strcmp(key, "normalizer") == 0) {
-		*dtype = floatType;
-		*ndim = 0;
-		return &cfg->normalizer;
-	} else if (strcmp(key, "workload") == 0) {
-		*dtype = floatType;
-		*ndim = 1;
-		dims[0] = MAX_DEVICE;
-		return &cfg->workload;
-	}
-	static char * invalidErr = "Not yet implemnted.";
-	*err = invalidErr;
-	return NULL;
+    if (strcmp(key, "exportfield") == 0) {
+        *dtype = floatType;
+        *ndim = 4;
+        dims[0] = cfg->dim.x;
+        dims[1] = cfg->dim.y;
+        dims[2] = cfg->dim.z;
+        dims[3] = (cfg->tend - cfg->tstart) / cfg->tstep + 0.5;
+        return cfg->exportfield;
+    } else if (strcmp(key, "exportdetected") == 0) {
+        *dtype = floatType;
+        *ndim = 2;
+        dims[0] = cfg->medianum + 1 + cfg->issaveexit * 6;
+        dims[1] = cfg->detectedcount;
+        return cfg->exportdetected;
+    } else if (strcmp(key, "seeddata") == 0) {
+        *dtype = uint8Type;
+        *ndim = 2;
+        dims[0] = (cfg->issaveseed>0)*RAND_WORD_LEN*sizeof(float);
+        dims[1] = cfg->detectedcount;
+        return cfg->seeddata;
+    } else if (strcmp(key, "exportdebugdata") == 0) {
+        *dtype = floatType;
+        *ndim = 2;
+        dims[0] = MCX_DEBUG_REC_LEN;
+        dims[1] = cfg->debugdatalen;
+        return cfg->exportdebugdata;
+    } else if (strcmp(key, "runtime") == 0) {
+        *dtype = uintType;
+        *ndim = 0;
+        return &cfg->runtime;
+    } else if (strcmp(key, "nphoton") == 0) {
+        *dtype = intType;
+        *ndim = 0;
+        return &cfg->nphoton;
+    } else if (strcmp(key, "energytot") == 0) {
+        *dtype = doubleType;
+        *ndim = 0;
+        return &cfg->energytot;
+    } else if (strcmp(key, "energyabs") == 0) {
+        *dtype = doubleType;
+        *ndim = 0;
+        return &cfg->energyabs;
+    } else if (strcmp(key, "normalizer") == 0) {
+        *dtype = floatType;
+        *ndim = 0;
+        return &cfg->normalizer;
+    } else if (strcmp(key, "workload") == 0) {
+        *dtype = floatType;
+        *ndim = 1;
+        dims[0] = MAX_DEVICE;
+        return &cfg->workload;
+    }
+    static char * invalidErr = "Not yet implemnted.";
+    *err = invalidErr;
+    return NULL;
 }
 
 
 int mcx_wrapped_run_simulation(Config *cfg, int nout, char**err) {
-	char temp_gpu_workaround[MAX_DEVICE];
-	memcpy(temp_gpu_workaround, cfg->deviceid, MAX_DEVICE);
+    char temp_gpu_workaround[MAX_DEVICE];
+    memcpy(temp_gpu_workaround, cfg->deviceid, MAX_DEVICE);
 
     GPUInfo *gpuinfo;
-	static char * exceptionErr = "MCX Terminated due to an exception!";
-	int threadid = 0, errorflag = 0;
-	char *errors[MAX_DEVICE];
-	int activedev = mcx_list_gpu(cfg, &gpuinfo);
+    static char * exceptionErr = "MCX Terminated due to an exception!";
+    int threadid = 0, errorflag = 0;
+    char *errors[MAX_DEVICE];
+    int activedev = mcx_list_gpu(cfg, &gpuinfo);
     if(activedev == 0){
         static char * noGpuErr = "No active GPU device found";
         *err = noGpuErr;
@@ -476,41 +478,41 @@ int mcx_wrapped_run_simulation(Config *cfg, int nout, char**err) {
     }
     initialize_output(cfg, nout);
 #ifdef _OPENMP
-	omp_set_num_threads(activedev);
+    omp_set_num_threads(activedev);
 #pragma omp parallel shared(errorflag, errors)
-	{
-		threadid = omp_get_thread_num();
+    {
+        threadid = omp_get_thread_num();
 #endif
-		jmp_buf errHandler;
-		if (setjmp(errHandler) == 0) {
-			mcx_set_error_handler(&errHandler);
-			mcx_run_simulation(cfg, gpuinfo);
-			errors[threadid] = NULL;
-		} else {
-			errorflag++;
-			errors[threadid] = mcx_get_error_message();
-		}
-		mcx_set_error_handler(NULL);
+        jmp_buf errHandler;
+        if (setjmp(errHandler) == 0) {
+            mcx_set_error_handler(&errHandler);
+            mcx_run_simulation(cfg, gpuinfo);
+            errors[threadid] = NULL;
+        } else {
+            errorflag++;
+            errors[threadid] = mcx_get_error_message();
+        }
+        mcx_set_error_handler(NULL);
 #ifdef _OPENMP
-	}
+    }
 #endif
-	mcx_cleargpuinfo(&gpuinfo);
-	memcpy(cfg->deviceid, temp_gpu_workaround, MAX_DEVICE);
-	if (errorflag) {
-		size_t len = 0;
-		*err = malloc(1024);
-		*err[1023] = '\0';
-		for (int i = 0, j=0; i < activedev && j < errorflag; i++) {
-			if (errors[i] != NULL) {
-				strncpy(*err+len, errors[i], 1023-len);
-				len += strlen(errors[i]);
-				free(errors[i]);
-				j++;
-			}
-		}
-		return -1;
-	}
-	return 0;
+    mcx_cleargpuinfo(&gpuinfo);
+    memcpy(cfg->deviceid, temp_gpu_workaround, MAX_DEVICE);
+    if (errorflag) {
+        size_t len = 0;
+        *err = malloc(1024);
+        *err[1023] = '\0';
+        for (int i = 0, j=0; i < activedev && j < errorflag; i++) {
+            if (errors[i] != NULL) {
+                strncpy(*err+len, errors[i], 1023-len);
+                len += strlen(errors[i]);
+                free(errors[i]);
+                j++;
+            }
+        }
+        return -1;
+    }
+    return 0;
 }
 
 
@@ -536,7 +538,7 @@ int mcx_validateconfig(Config *cfg, char **errmsg, int seedbyte, float *detps, i
 
     if(!cfg->issrcfrom0){
         cfg->srcpos.x--;cfg->srcpos.y--;cfg->srcpos.z--; /*convert to C index, grid center*/
-		cfg->issrcfrom0 = 1;
+        cfg->issrcfrom0 = 1;
     }
     /** One must define the domain and properties */
     if (cfg->vol == NULL || cfg->medianum == 0) {

@@ -1,5 +1,5 @@
-#ifndef MCX_MCX_FFI_H
-#define MCX_MCX_FFI_H
+#ifndef MCX_FFI_H
+#define MCX_FFI_H
 
 #include "mcx_utils.h"
 
@@ -9,7 +9,7 @@
 #define MCX_EXPORT
 #endif
 
-#ifdef	__cplusplus
+#ifdef __cplusplus
 extern "C" {
 #endif
 
@@ -25,9 +25,9 @@ MCX_EXPORT int mcx_wrapped_run_simulation(Config *cfg, int nout, char**err);
 
 MCX_EXPORT int  mcx_validateconfig(Config *cfg, char **errmsg, int seedbyte, float *detps, int *dimdetps);
 
-#ifdef	__cplusplus
+#ifdef __cplusplus
 }
 #endif
 
 
-#endif //MCX_MCX_FFI_H
+#endif //MCX_FFI_H
