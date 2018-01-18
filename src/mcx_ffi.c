@@ -1,4 +1,5 @@
 #include <string.h>
+#include <stdint.h>
 #include "mcx_utils.h"
 #include "mcx_core.h"
 #include "mcx_shapes.h"
@@ -51,14 +52,30 @@ void mcx_destroy_config(Config * cfg){
 #define TYPE_SAFE_PTR_SETTER(DST, SETTER) \
 if (strcmp(dtype, "char") == 0) {\
 SETTER(DST, ((char*)value))\
-} else if (strcmp(dtype, "int") == 0 || (sizeof(int) == 4 && strcmp(dtype, "int32") == 0) || (sizeof(int) == 8 && strcmp(dtype, "int64") == 0)) {\
+} else if (strcmp(dtype, "int") == 0) {\
 SETTER(DST, ((int*)value))\
-} else if (strcmp(dtype, "uint") == 0 || (sizeof(uint) == 4 && strcmp(dtype, "uint32") == 0) || (sizeof(uint) == 8 && strcmp(dtype, "uint64") == 0)) {\
+} else if (strcmp(dtype, "uint") == 0) {\
 SETTER(DST, ((uint*)value))\
 } else if (strcmp(dtype, "float") == 0 || strcmp(dtype, "float32") == 0) {\
 SETTER(DST, ((float*)value))\
 } else if (strcmp(dtype, "double") == 0 || strcmp(dtype, "float64") == 0) {\
 SETTER(DST, ((double*)value))\
+} else if (strcmp(dtype, "int8") == 0) {\
+SETTER(DST, ((int8_t*)value))\
+} else if (strcmp(dtype, "uint8") == 0) {\
+SETTER(DST, ((uint8_t*)value))\
+} else if (strcmp(dtype, "int16") == 0) {\
+SETTER(DST, ((int16_t*)value))\
+} else if (strcmp(dtype, "uint16") == 0) {\
+SETTER(DST, ((uint16_t*)value))\
+} else if (strcmp(dtype, "int32") == 0) {\
+SETTER(DST, ((int32_t*)value))\
+} else if (strcmp(dtype, "uint32") == 0) {\
+SETTER(DST, ((uint32_t*)value))\
+} else if (strcmp(dtype, "int64") == 0) {\
+SETTER(DST, ((int64_t*)value))\
+} else if (strcmp(dtype, "uint64") == 0) {\
+SETTER(DST, ((uint64_t*)value))\
 } else {\
     *err = typeErr;\
     return -1;\
