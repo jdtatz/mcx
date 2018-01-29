@@ -5,9 +5,9 @@
 **  \copyright Qianqian Fang, 2009-2018
 **
 **  \section sref Reference:
-**  \li \c (\b Fang2009) Qianqian Fang and David A. Boas,
+**  \li \c (\b Fang2009) Qianqian Fang and David A. Boas, 
 **          <a href="http://www.opticsinfobase.org/abstract.cfm?uri=oe-17-22-20178">
-**          "Monte Carlo Simulation of Photon Migration in 3D Turbid Media Accelerated
+**          "Monte Carlo Simulation of Photon Migration in 3D Turbid Media Accelerated 
 **          by Graphics Processing Units,"</a> Optics Express, 17(22) 20178-20190 (2009).
 **  \li \c (\b Yu2018) Leiming Yu, Fanny Nina-Paravecino, David Kaeli, and Qianqian Fang,
 **          "Scalable and massively parallel Monte Carlo photon transport
@@ -252,7 +252,7 @@ void mcx_clearcfg(Config *cfg){
         free(cfg->replay.seed);
      if(cfg->replay.tof)
         free(cfg->replay.tof);
-
+     
      if(cfg->exportfield)
         free(cfg->exportfield);
      if(cfg->exportdetected)
@@ -348,7 +348,7 @@ void mcx_savenii(float *dat, size_t len, char* name, int type32bit, int outputfo
          fp = fopen(fname,"wb");
          if (fp == NULL)
              mcx_error(-9, "Error opening img file for write",__FILE__,__LINE__);
-         if (fwrite(logval, (size_t)(hdr.bitpix>>3), hdr.dim[1]*hdr.dim[2]*hdr.dim[3]*hdr.dim[4], fp) !=
+         if (fwrite(logval, (size_t)(hdr.bitpix>>3), hdr.dim[1]*hdr.dim[2]*hdr.dim[3]*hdr.dim[4], fp) != 
 	       hdr.dim[1]*hdr.dim[2]*hdr.dim[3]*hdr.dim[4])
              mcx_error(-9, "Error writing img file",__FILE__,__LINE__);
 
@@ -466,7 +466,6 @@ void mcx_flush(Config *cfg){
 #endif
 }
 
-
 static jmp_buf  * mcx_error_jmp_buf_env = NULL;  /**< jump buffer for C-syle error handling for shared libray*/
 static char * errMsg;
 #ifdef _OPENMP
@@ -493,7 +492,7 @@ void mcx_set_error_handler(jmp_buf * bufp) {
 char * mcx_get_error_message() {
 	return errMsg;
 }
-
+ 
 
 /**
  * @brief Error reporting function
@@ -511,7 +510,7 @@ void mcx_error(const int id,const char *msg,const char *file,const int linenum){
 	if (mcx_error_jmp_buf_env == NULL) {
 		MCX_FPRINTF(stderr, "\nMCX ERROR(%d):%s in unit %s:%d\n", id, msg, file, linenum);
 		if (id == -CUDA_ERROR_LAUNCH_TIMEOUT) {
-			fprintf(stderr, "This error often happens when you are using a non-dedicated GPU.\n\
+			fprintf(stderr, "This error often happens when you are using a non-dedicated GPU.\n\ 
 Please checkout FAQ #1 for more details:\n\
 URL: http://mcx.sf.net/cgi-bin/index.cgi?Doc/FAQ\n");
 		}
@@ -521,7 +520,7 @@ URL: http://mcx.sf.net/cgi-bin/index.cgi?Doc/FAQ\n");
 		snprintf(errMsg, 1024, "MCX ERROR(%d):%s in unit %s:%d\n", id, msg, file, linenum);
 		errMsg[1023] = '\0';
 		longjmp(*mcx_error_jmp_buf_env, id);
-	}
+	} 
 #endif
 }
 
@@ -610,7 +609,7 @@ void mcx_readconfig(char *fname, Config *cfg){
             }
             if(fp!=NULL) free(jbuf);
         }else{
-	    mcx_loadconfig(fp,cfg);
+	    mcx_loadconfig(fp,cfg); 
         }
         if(fp!=NULL) fclose(fp);
 	if(cfg->session[0]=='\0'){
@@ -639,7 +638,7 @@ void mcx_writeconfig(char *fname, Config *cfg){
      else{
      	FILE *fp=fopen(fname,"wt");
 	if(fp==NULL) mcx_error(-2,"can not write to the specified config file",__FILE__,__LINE__);
-	mcx_saveconfig(fp,cfg);
+	mcx_saveconfig(fp,cfg);     
 	fclose(fp);
      }
 }
@@ -711,7 +710,7 @@ void mcx_loadconfig(FILE *in, Config *cfg){
      uint i,gates,itmp;
      float dtmp;
      char filename[MAX_PATH_LENGTH]={'\0'}, comment[MAX_PATH_LENGTH],strtypestr[MAX_SESSION_LENGTH]={'\0'},*comm;
-
+     
      if(in==stdin)
      	fprintf(stdout,"Please specify the total number of photons: [1000000]\n\t");
      MCX_ASSERT(fscanf(in,"%d", &(i) )==1);
@@ -856,7 +855,7 @@ void mcx_loadconfig(FILE *in, Config *cfg){
          mcx_error(-4,"input media types plus detector number exceeds the maximum total (4000)",__FILE__,__LINE__);
 
      cfg->detpos=(float4*)malloc(sizeof(float4)*cfg->detnum);
-     if(cfg->issavedet && cfg->detnum==0)
+     if(cfg->issavedet && cfg->detnum==0) 
       	cfg->issavedet=0;
      for(i=0;i<cfg->detnum;i++){
         if(in==stdin)
@@ -1110,7 +1109,7 @@ int mcx_loadjson(cJSON *root, Config *cfg){
            if(det){
              cfg->detnum=cJSON_GetArraySize(dets);
              cfg->detpos=(float4*)malloc(sizeof(float4)*cfg->detnum);
-	     if(cfg->issavedet && cfg->detnum==0)
+	     if(cfg->issavedet && cfg->detnum==0) 
       		cfg->issavedet=0;
              for(i=0;i<cfg->detnum;i++){
                cJSON *pos=dets, *rad=NULL;
@@ -1236,7 +1235,7 @@ void mcx_loadvolume(char *filename,Config *cfg){
      unsigned int i,datalen,res;
      unsigned char *inputvol=NULL;
      FILE *fp;
-
+     
      if(strstr(filename,".json")!=NULL){
          int status;
          Grid3D grid={&(cfg->vol),&(cfg->dim),{1.f,1.f,1.f},cfg->isrowmajor};
@@ -1355,12 +1354,11 @@ void  mcx_convertrow2col(unsigned int **vol, uint3 *dim){
      uint x,y,z;
      unsigned int dimxy,dimyz;
      unsigned int *newvol=NULL;
-
+     
      if(*vol==NULL || dim->x==0 || dim->y==0 || dim->z==0){
      	return;
-     }
+     }     
      newvol=(unsigned int*)malloc(sizeof(unsigned int)*dim->x*dim->y*dim->z);
-
      dimxy=dim->x*dim->y;
      dimyz=dim->y*dim->z;
      for(x=0;x<dim->x;x++)
@@ -1389,11 +1387,11 @@ void  mcx_maskdet(Config *cfg){
      unsigned int *padvol;
      const float corners[8][3]={{0.f,0.f,0.f},{1.f,0.f,0.f},{0.f,1.f,0.f},{0.f,0.f,1.f},
                                 {1.f,1.f,0.f},{1.f,0.f,1.f},{0.f,1.f,1.f},{1.f,1.f,1.f}};
-
+     
      dx=cfg->dim.x+2;
      dy=cfg->dim.y+2;
      dz=cfg->dim.z+2;
-
+     
      /*handling boundaries in a volume search is tedious, I first pad vol by a layer of zeros,
        then I don't need to worry about boundaries any more*/
 
@@ -1404,9 +1402,9 @@ void  mcx_maskdet(Config *cfg){
 	        memcpy(padvol+zi*dy*dx+yi*dx+1,cfg->vol+(zi-1)*cfg->dim.y*cfg->dim.x+(yi-1)*cfg->dim.x,cfg->dim.x*sizeof(int));
 
      /**
-        The goal here is to find a set of voxels for each
+        The goal here is to find a set of voxels for each 
 	detector so that the intersection between a sphere
-	of R=cfg->detradius,c0=cfg->detpos[d] and the object
+	of R=cfg->detradius,c0=cfg->detpos[d] and the object 
 	surface (or bounding box) is fully covered.
      */
      for(d=0;d<cfg->detnum;d++){                             /*loop over each detector*/
@@ -1460,7 +1458,7 @@ void  mcx_maskdet(Config *cfg){
 /**
  * @brief Save the pre-masked volume (with detector ID) to an nii file
  *
- * To test the results, you should use -M to dump the det-mask, load
+ * To test the results, you should use -M to dump the det-mask, load 
  * it in matlab, and plot the interface containing the detector with
  * pcolor() (has the matching index), and then draw a circle with the
  * radius and center set in the input file. the pixels should completely
@@ -1540,7 +1538,7 @@ void mcx_progressbar(float percent, Config *cfg){
 
 int mcx_readarg(int argc, char *argv[], int id, void *output,const char *type){
      /*
-         when a binary option is given without a following number (0~1),
+         when a binary option is given without a following number (0~1), 
          we assume it is 1
      */
      if(strcmp(type,"char")==0 && (id>=argc-1||(argv[id+1][0]<'0'||argv[id+1][0]>'9'))){
@@ -1573,7 +1571,7 @@ int mcx_readarg(int argc, char *argv[], int id, void *output,const char *type){
          }else if(strcmp(type,"floatlist")==0){
              char *nexttok;
              float *numlist=(float *)output;
-             int len=0;
+             int len=0;   
              nexttok=strtok(argv[id+1]," ,;");
              while(nexttok){
                  numlist[len++]=atof(nexttok); /*device id<256*/
@@ -1636,7 +1634,7 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
 			}
 		}
 	        switch(argv[i][1]){
-		     case 'h':
+		     case 'h': 
 		                mcx_usage(cfg,argv[0]);
 				exit(0);
 		     case 'i':
@@ -1645,7 +1643,7 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
 				}
 		     		isinteractive=1;
 				break;
-		     case 'f':
+		     case 'f': 
 		     		isinteractive=0;
 				if(argc>i && argv[i+1][0]=='{'){
 					jsoninput=argv[i+1];
