@@ -192,6 +192,7 @@ all xor fast log logfast racing xoratomic logatomic xorbox logbox debugxor debug
 
 makedirs:
 	@if test ! -d $(OUTPUT_DIR); then $(MKDIR) $(OUTPUT_DIR); fi
+	@if test ! -d $(OUTPUT_LIBDIR); then $(MKDIR) $(OUTPUT_LIBDIR); fi
 
 makedocdir:
 	@if test ! -d $(DOCDIR); then $(MKDIR) $(DOCDIR); fi
@@ -202,7 +203,7 @@ $(OUTPUT_DIR)/$(BINARY): $(OBJS)
 
 $(OUTPUT_LIBDIR)/$(SLIB): makedirs $(OBJS)
 $(OUTPUT_LIBDIR)/$(SLIB): $(OBJS)
-	$(AR) -shared $(OBJS) $(OUTPUTFLAG) $(OUTPUT_DIR)/$(SLIB) $(LINKOPT) $(USERLINKOPT)
+	$(AR) $(OBJS) -shared $(OUTPUTFLAG) $(OUTPUT_LIBDIR)/$(SLIB) $(LINKOPT) $(USERLINKOPT)
 
 %$(OBJSUFFIX): %.c
 	$(CC) $(INCLUDEDIRS) $(CPPOPT) -c -o $@  $<
