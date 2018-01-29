@@ -1,5 +1,7 @@
 #include <string.h>
 #include <stdint.h>
+#include <math.h>
+#include <time.h>
 #include "mcx_utils.h"
 #include "mcx_core.h"
 #include "mcx_shapes.h"
@@ -108,9 +110,9 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
     if (strcmp(key, "nphoton") == 0) {
         if (cfg->replay.seed != NULL)
             return 0;
-        else if (ndim != 0) { 
-            *err = ndimErr; 
-            return -1; 
+        else if (ndim != 0) {
+            *err = ndimErr;
+            return -1;
         }
         SET_SCALAR(cfg->nphoton)
     }
@@ -178,7 +180,7 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
         cfg->medianum = dims[0];
         if(cfg->prop) free(cfg->prop);
         cfg->prop = malloc(cfg->medianum*sizeof(Medium));
-        float * dst = cfg->prop;
+        float * dst = (float*)cfg->prop;
         SET_MATRIX(dst, C);
     } else if(strcmp(key, "detpos")==0){
         if(ndim != 2){
@@ -191,7 +193,7 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
         cfg->detnum=dims[0];
         if(cfg->detpos) free(cfg->detpos);
         cfg->detpos = malloc(cfg->detnum*sizeof(float4));
-        float *dst = cfg->detpos;
+        float *dst = (float*)cfg->detpos;
         SET_MATRIX(dst, C);
     } else if(strcmp(key,"session")==0) {
         if(strcmp(dtype, "string") != 0){
@@ -486,7 +488,6 @@ int mcx_wrapped_run_simulation(Config *cfg, int nout, char**err) {
     memcpy(temp_gpu_workaround, cfg->deviceid, MAX_DEVICE);
 
     GPUInfo *gpuinfo;
-    static char * exceptionErr = "MCX Terminated due to an exception!";
     int threadid = 0, errorflag = 0;
     char *errors[MAX_DEVICE];
     int activedev = mcx_list_gpu(cfg, &gpuinfo);

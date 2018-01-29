@@ -100,7 +100,7 @@ else
   endif
 endif
 
-CUGENCODE=-arch=sm_20
+CUGENCODE=-arch=sm_35
 OUTPUTFLAG:=-o
 
 logfast:    CUCCOPT+=-use_fast_math
@@ -179,7 +179,7 @@ doc: makedocdir
 OBJS      := $(addsuffix $(OBJSUFFIX), $(FILES))
 
 all xor fast log logfast racing xoratomic logatomic xorbox logbox debugxor debuglog \
- det detbox fermi mex oct mexbox octbox fermimex fermioct: cudasdk $(OUTPUT_DIR)/$(BINARY) $(OUTPUT_DIR)/mcx.so
+ det detbox fermi mex oct mexbox octbox fermimex fermioct: cudasdk $(OUTPUT_DIR)/$(BINARY) $(OUTPUT_DIR)/$(SLIB)
 
 makedirs:
 	@if test ! -d $(OUTPUT_DIR); then $(MKDIR) $(OUTPUT_DIR); fi
