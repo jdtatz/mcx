@@ -593,6 +593,7 @@ __device__ inline void rotatevector(MCXdir *v, float stheta, float ctheta, float
  * @param[in,out] v: the direction vector of the photon
  * @param[in,out] f: the parameter vector of the photon
  * @param[in,out] rv: the reciprocal direction vector of the photon (rv[i]=1/v[i])
+ * @param[out] prop: the optical properties of the voxel the photon is launched into
  * @param[in,out] idx1d: the linear index of the voxel containing the photon at launch
  * @param[in,out] mediaid: the medium index at the voxel at launch
  * @param[in,out] w0: initial weight, reset here after launch
@@ -616,7 +617,7 @@ __device__ inline void rotatevector(MCXdir *v, float stheta, float ctheta, float
 
 template <int mcxsource>
 __device__ inline int launchnewphoton(MCXpos *p,MCXdir *v,MCXtime *f,float3* rv,Medium *prop,uint *idx1d,
-           uint *mediaid,float *w0,float *Lmove,uint isdet, float ppath[],float energyloss[],float energylaunched[],float n_det[],uint *dpnum,
+           uint *mediaid,float *w0,float *Lmove,int isdet, float ppath[],float energyloss[],float energylaunched[],float n_det[],uint *dpnum,
 	   RandType t[RAND_BUF_LEN],RandType photonseed[RAND_BUF_LEN],
 	   uint media[],float srcpattern[],int threadid,RandType rngseed[],RandType seeddata[],float gdebugdata[],volatile int gprogress[]){
       *w0=1.f;     ///< reuse to count for launchattempt
@@ -631,7 +632,7 @@ __device__ inline int launchnewphoton(MCXpos *p,MCXdir *v,MCXtime *f,float3* rv,
 #ifdef SAVE_DETECTORS
       // let's handle detectors here
           if(gcfg->savedet){
-             if(isdet && *mediaid==0)
+             if(isdet>0 && *mediaid==0)
 	         savedetphoton(n_det,dpnum,v->nscat,ppath,p,v,photonseed,seeddata);
              clearpath(ppath,gcfg->maxmedia);
           }
@@ -672,16 +673,29 @@ __device__ inline int launchnewphoton(MCXpos *p,MCXdir *v,MCXtime *f,float3* rv,
 	  switch(mcxsource) {
 		case(MCX_SRC_PLANAR):
 		case(MCX_SRC_PATTERN):
+		case(MCX_SRC_PATTERN3D):
 		case(MCX_SRC_FOURIER):
 		case(MCX_SRC_PENCILARRAY): { /*a rectangular grid over a plane*/
 		      float rx=rand_uniform01(t);
 		      float ry=rand_uniform01(t);
-		      *((float4*)p)=float4(p->x+rx*gcfg->srcparam1.x+ry*gcfg->srcparam2.x,
-					   p->y+rx*gcfg->srcparam1.y+ry*gcfg->srcparam2.y,
-					   p->z+rx*gcfg->srcparam1.z+ry*gcfg->srcparam2.z,
-					   p->w);
+		      float rz;
+		      if(gcfg->srctype==MCX_SRC_PATTERN3D){
+		            rz=rand_uniform01(t);
+		            *((float4*)p)=float4(p->x+rx*gcfg->srcparam1.x,
+			 		         p->y+ry*gcfg->srcparam1.y,
+					         p->z+rz*gcfg->srcparam1.z,
+					         p->w);
+		      }else{
+		          *((float4*)p)=float4(p->x+rx*gcfg->srcparam1.x+ry*gcfg->srcparam2.x,
+					       p->y+rx*gcfg->srcparam1.y+ry*gcfg->srcparam2.y,
+					       p->z+rx*gcfg->srcparam1.z+ry*gcfg->srcparam2.z,
+					       p->w);
+		      }
 		      if(gcfg->srctype==MCX_SRC_PATTERN) // need to prevent rx/ry=1 here
 			  p->w=srcpattern[(int)(ry*JUST_BELOW_ONE*gcfg->srcparam2.w)*(int)(gcfg->srcparam1.w)+(int)(rx*JUST_BELOW_ONE*gcfg->srcparam1.w)];
+		      else if(gcfg->srctype==MCX_SRC_PATTERN3D)
+		          p->w=srcpattern[(int)(rz*JUST_BELOW_ONE*gcfg->srcparam1.z)*(int)(gcfg->srcparam1.y)*(int)(gcfg->srcparam1.x)+
+		                          (int)(ry*JUST_BELOW_ONE*gcfg->srcparam1.y)*(int)(gcfg->srcparam1.x)+(int)(rx*JUST_BELOW_ONE*gcfg->srcparam1.x)];
 		      else if(gcfg->srctype==MCX_SRC_FOURIER)
 			  p->w=(cosf((floorf(gcfg->srcparam1.w)*rx+floorf(gcfg->srcparam2.w)*ry
 				  +gcfg->srcparam1.w-floorf(gcfg->srcparam1.w))*TWO_PI)*(1.f-gcfg->srcparam2.w+floorf(gcfg->srcparam2.w))+1.f)*0.5f; //between 0 and 1
@@ -926,7 +940,7 @@ kernel void mcx_test_rng(float field[],uint n_seed[]){
  *
  * @param[in] media: domain medium index array, read-only
  * @param[out] field: the 3D/4D array where the fluence/energy-deposit are accummulated
- * @param[in,out] energy: the array storing the total launched and escaped energy for each thread
+ * @param[in,out] genergy: the array storing the total launched and escaped energy for each thread
  * @param[in] n_seed: the seed to the RNG of this thread
  * @param[in,out] n_pos: the initial position state of the photon for each thread
  * @param[in,out] n_dir: the initial direction state of the photon for each thread
@@ -963,7 +977,8 @@ kernel void mcx_main_loop(uint media[],float field[],float genergy[],uint n_seed
      int cc=0;
 #endif
      uint  mediaid=gcfg->mediaidorig;
-     uint  mediaidold=0,isdet=0;
+     uint  mediaidold=0;
+     int   isdet=0;
      float  n1;               ///< reflection var
      float3 htime;            ///< time-of-flight for collision test
      float3 rv;               ///< reciprocal velocity
@@ -1143,7 +1158,7 @@ kernel void mcx_main_loop(uint media[],float field[],float genergy[],uint n_seed
           if(p.x<0||p.y<0||p.z<0||p.x>=gcfg->maxidx.x||p.y>=gcfg->maxidx.y||p.z>=gcfg->maxidx.z){
               /** if photon moves outside of the volume, set mediaid to 0 */
 	      mediaid=0;
-	      isdet=0;
+	      isdet=-1;
 	  }else{
               /** otherwise, read the optical property index */
 	      mediaid=media[idx1d];
@@ -1198,13 +1213,13 @@ kernel void mcx_main_loop(uint media[],float field[],float genergy[],uint n_seed
   #endif
                       }else{
                           field[idx1dold+tshift*gcfg->dimlen.z]+=weight;
-		          if(mediaid==0 && isdet==0 &&gcfg->issaveref)
+		          if(mediaid==0 && isdet>=0 &&gcfg->issaveref)
 		              field[idx1d+tshift*gcfg->dimlen.z]+=-p.w;
                       }
                   }else{
                       /** accummulate the quality to the volume using non-atomic operations  */
                       field[idx1dold+tshift*gcfg->dimlen.z]+=weight;
-		      if(mediaid==0 && isdet==0 &&gcfg->issaveref)
+		      if(mediaid==0 && isdet>=0 &&gcfg->issaveref)
 		          field[idx1d+tshift*gcfg->dimlen.z]+=-p.w;
                   }
   #ifdef USE_ATOMIC
@@ -1212,7 +1227,7 @@ kernel void mcx_main_loop(uint media[],float field[],float genergy[],uint n_seed
 	          /** accummulate the quality to the volume using atomic operations  */
                   // ifndef CUDA_NO_SM_11_ATOMIC_INTRINSICS
 		  atomicadd(& field[idx1dold+tshift*gcfg->dimlen.z], weight);
-		  if(mediaid==0 && isdet==0 &&gcfg->issaveref)
+		  if(mediaid==0 && isdet>=0 &&gcfg->issaveref)
 		      atomicadd(& field[idx1d+tshift*gcfg->dimlen.z],-p.w);
                   GPUDEBUG(("atomic write to [%d] %e, w=%f\n",idx1dold,weight,p.w));
                }
@@ -1721,7 +1736,9 @@ void mcx_run_simulation(Config *cfg,GPUInfo *gpu){
 
      if(cfg->srctype==MCX_SRC_PATTERN)
          CUDA_ASSERT(cudaMalloc((void **) &gsrcpattern, sizeof(float)*(int)(cfg->srcparam1.w*cfg->srcparam2.w)));
-
+     else if(cfg->srctype==MCX_SRC_PATTERN3D)
+         CUDA_ASSERT(cudaMalloc((void **) &gsrcpattern, sizeof(float)*(int)(cfg->srcparam1.x*cfg->srcparam1.y*cfg->srcparam1.z)));
+	 
 #ifndef SAVE_DETECTORS
 #pragma omp master
      if(cfg->issavedet){
@@ -1793,7 +1810,11 @@ void mcx_run_simulation(Config *cfg,GPUInfo *gpu){
      CUDA_ASSERT(cudaMemcpy(gmedia, media, sizeof(uint)*dimxyz, cudaMemcpyHostToDevice));
      CUDA_ASSERT(cudaMemcpy(genergy,energy,sizeof(float) *(gpu[gpuid].autothread<<1), cudaMemcpyHostToDevice));
      if(cfg->srcpattern)
-         CUDA_ASSERT(cudaMemcpy(gsrcpattern,cfg->srcpattern,sizeof(float)*(int)(cfg->srcparam1.w*cfg->srcparam2.w), cudaMemcpyHostToDevice));
+        if(cfg->srctype==MCX_SRC_PATTERN)
+           CUDA_ASSERT(cudaMemcpy(gsrcpattern,cfg->srcpattern,sizeof(float)*(int)(cfg->srcparam1.w*cfg->srcparam2.w), cudaMemcpyHostToDevice));
+	else if(cfg->srctype==MCX_SRC_PATTERN3D)
+	   CUDA_ASSERT(cudaMemcpy(gsrcpattern,cfg->srcpattern,sizeof(float)*(int)(cfg->srcparam1.x*cfg->srcparam1.y*cfg->srcparam1.z), cudaMemcpyHostToDevice));
+     
 
      CUDA_ASSERT(cudaMemcpyToSymbol(gproperty, cfg->prop,  cfg->medianum*sizeof(Medium), 0, cudaMemcpyHostToDevice));
      CUDA_ASSERT(cudaMemcpyToSymbol(gproperty, cfg->detpos,  cfg->detnum*sizeof(float4), cfg->medianum*sizeof(Medium), cudaMemcpyHostToDevice));
@@ -1882,6 +1903,7 @@ void mcx_run_simulation(Config *cfg,GPUInfo *gpu){
 		case(MCX_SRC_LINE): mcx_main_loop<MCX_SRC_LINE> <<<mcgrid,mcblock,sharedbuf>>>(gmedia,gfield,genergy,gPseed,gPpos,gPdir,gPlen,gPdet,gdetected,gsrcpattern,greplayw,greplaytof,gseeddata,gdebugdata,gprogress); break;
 		case(MCX_SRC_SLIT): mcx_main_loop<MCX_SRC_SLIT> <<<mcgrid,mcblock,sharedbuf>>>(gmedia,gfield,genergy,gPseed,gPpos,gPdir,gPlen,gPdet,gdetected,gsrcpattern,greplayw,greplaytof,gseeddata,gdebugdata,gprogress); break;
 		case(MCX_SRC_PENCILARRAY): mcx_main_loop<MCX_SRC_PENCILARRAY> <<<mcgrid,mcblock,sharedbuf>>>(gmedia,gfield,genergy,gPseed,gPpos,gPdir,gPlen,gPdet,gdetected,gsrcpattern,greplayw,greplaytof,gseeddata,gdebugdata,gprogress); break;
+		case(MCX_SRC_PATTERN3D): mcx_main_loop<MCX_SRC_PATTERN3D> <<<mcgrid,mcblock,sharedbuf>>>(gmedia,gfield,genergy,gPseed,gPpos,gPdir,gPlen,gPdet,gdetected,gsrcpattern,greplayw,greplaytof,gseeddata,gdebugdata,gprogress); break;
 	   }
 
 #pragma omp master
@@ -2027,9 +2049,8 @@ is more than what your have specified (%d), please use the -H option to specify 
 	       scale=0.f;
 	       for(i=0;i<cfg->nphoton;i++)
 	           scale+=cfg->replay.weight[i];
-	       scale*=cfg->unitinmm;
 	       if(scale>0.f)
-	           scale=1.f/scale;
+	           scale=cfg->unitinmm/scale;
            }
          cfg->normalizer=scale;
 	 cfg->his.normalizer=scale;

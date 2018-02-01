@@ -39,11 +39,17 @@
 #include "mcx_const.h"
 #include "mcx_shapes.h"
 
+/**
+ * Macro to load JSON keys
+ */
 #define FIND_JSON_KEY(id,idfull,parent,fallback,val) \
                     ((tmp=cJSON_GetObjectItem(parent,id))==0 ? \
                                 ((tmp=cJSON_GetObjectItem(root,idfull))==0 ? fallback : tmp->val) \
                      : tmp->val)
 
+/**
+ * Macro to load JSON object
+ */
 #define FIND_JSON_OBJ(id,idfull,parent) \
                     ((tmp=cJSON_GetObjectItem(parent,id))==0 ? \
                                 ((tmp=cJSON_GetObjectItem(root,idfull))==0 ? NULL : tmp) \
@@ -54,6 +60,9 @@
          char pathsep='/';
 #endif
 
+/**
+ * Macro to include unit name and line number in the error message
+ */
 #define MCX_ASSERT(a)  (!(a) && (mcx_error((a),"input error",__FILE__,__LINE__),1) );
 
 #define MIN_HEADER_SIZE 348    /**< Analyze header size */
@@ -66,7 +75,7 @@
  */
 
 const char shortopt[]={'h','i','f','n','t','T','s','a','g','b','B','z','u','H','P','N',
-                 'd','r','S','p','e','U','R','l','L','-','I','o','G','M','A','E','v','D',
+                 'd','r','S','p','e','U','R','l','L','-','I','-','G','M','A','E','v','D',
 		 'k','q','Y','O','F','-','-','x','X','-','-','\0'};
 
 /**
@@ -122,7 +131,7 @@ const char *outputformat[]={"mc2","nii","hdr","ubj",""};
 
 const char *srctypeid[]={"pencil","isotropic","cone","gaussian","planar",
     "pattern","fourier","arcsine","disk","fourierx","fourierx2d","zgaussian",
-    "line","slit","pencilarray",""};
+    "line","slit","pencilarray","pattern3d",""};
 
 /**
  * @brief Initializing the simulation configuration with default values
@@ -396,6 +405,7 @@ void mcx_savedata(float *dat, size_t len, Config *cfg){
  * @param[in] ppath: buffer pointing to the detected photon data (partial path etc)
  * @param[in] seeds: buffer pointing to the detected photon seed data
  * @param[in] count: number of detected photons
+ * @param[in] doappend: flag if the new data is appended or write from the begining
  * @param[in] cfg: simulation configuration
  */
 
@@ -440,7 +450,7 @@ void mcx_printlog(Config *cfg, char *str){
  * @param[in,out] field: volumetric data before normalization
  * @param[in] scale: the scaling factor (or normalization factor) to be applied
  * @param[in] fieldlen: the length (floating point) of elements in the volume
- * @param[in] opinion: if set to 2, only normalize positive values (negative values for diffuse reflectance calculations)
+ * @param[in] option: if set to 2, only normalize positive values (negative values for diffuse reflectance calculations)
  */
 
 void mcx_normalize(float field[], float scale, int fieldlen, int option){
@@ -905,6 +915,17 @@ void mcx_loadconfig(FILE *in, Config *cfg){
                      MCX_ERROR(-6,"pattern file can not be opened");
                MCX_ASSERT(fread(cfg->srcpattern,cfg->srcparam1.w*cfg->srcparam2.w,sizeof(float),fp)==sizeof(float));
                fclose(fp);
+           }else if(cfg->srctype==MCX_SRC_PATTERN3D && cfg->srcparam1.x*cfg->srcparam1.y*cfg->srcparam1.z>0){
+               char patternfile[MAX_PATH_LENGTH];
+               FILE *fp;
+               if(cfg->srcpattern) free(cfg->srcpattern);
+               cfg->srcpattern=(float*)calloc((int)(cfg->srcparam1.x*cfg->srcparam1.y*cfg->srcparam1.z),sizeof(float));
+               MCX_ASSERT(fscanf(in, "%s", patternfile)==1);
+               fp=fopen(patternfile,"rb");
+               if(fp==NULL)
+                     MCX_ERROR(-6,"pattern file can not be opened");
+               MCX_ASSERT(fread(cfg->srcpattern,cfg->srcparam1.x*cfg->srcparam1.y*cfg->srcparam1.z,sizeof(float),fp)==sizeof(float));
+               fclose(fp);
            }
 	}else
 	   return;
@@ -1086,14 +1107,15 @@ int mcx_loadjson(cJSON *root, Config *cfg){
            if(subitem){
               int nx=FIND_JSON_KEY("Nx","Optode.Source.Pattern.Nx",subitem,0,valueint);
               int ny=FIND_JSON_KEY("Ny","Optode.Source.Pattern.Ny",subitem,0,valueint);
-              if(nx>0 || ny>0){
+              int nz=FIND_JSON_KEY("Nz","Optode.Source.Pattern.Nz",subitem,1,valueint);
+              if(nx>0 && ny>0){
                  cJSON *pat=FIND_JSON_OBJ("Data","Optode.Source.Pattern.Data",subitem);
                  if(pat && pat->child){
                      int i;
                      pat=pat->child;
                      if(cfg->srcpattern) free(cfg->srcpattern);
-                     cfg->srcpattern=(float*)calloc(nx*ny,sizeof(float));
-                     for(i=0;i<nx*ny;i++){
+                     cfg->srcpattern=(float*)calloc(nx*ny*nz,sizeof(float));
+                     for(i=0;i<nx*ny*nz;i++){
                          cfg->srcpattern[i]=pat->valuedouble;
                          if((pat=pat->next)==NULL){
                              MCX_ERROR(-1,"Incomplete pattern data");
@@ -1718,9 +1740,6 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
 		     case 'I':
                                 cfg->isgpuinfo=1;
 		                break;
-		     case 'o':
-		     	        i=mcx_readarg(argc,argv,i,cfg->rootpath,"string");
-		     	        break;
                      case 'G':
                                 if(mcx_isbinstr(argv[i+1])){
                                     i=mcx_readarg(argc,argv,i,cfg->deviceid,"string");
@@ -1812,6 +1831,8 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
                                      i=mcx_readarg(argc,argv,i,&(cfg->mediabyte),"int");
                                 else if(strcmp(argv[i]+2,"faststep")==0)
                                      i=mcx_readarg(argc,argv,i,&(cfg->faststep),"char");
+                                else if(strcmp(argv[i]+2,"faststep")==0)
+                                     i=mcx_readarg(argc,argv,i,cfg->rootpath,"string");
                                 else
                                      MCX_FPRINTF(cfg->flog,"unknown verbose option: --%s\n",argv[i]+2);
 		     	        break;
@@ -1945,14 +1966,14 @@ int mcx_isbinstr(const char * str){
 /**
  * @brief Print MCX output header
  *
- * @param[in] str: string to be tested
+ * @param[in] cfg: simulation configuration
  */
 
 void mcx_printheader(Config *cfg){
     MCX_FPRINTF(cfg->flog,"\
 ###############################################################################\n\
 #                      Monte Carlo eXtreme (MCX) -- CUDA                      #\n\
-#          Copyright (c) 2009-2017 Qianqian Fang <q.fang at neu.edu>          #\n\
+#          Copyright (c) 2009-2018 Qianqian Fang <q.fang at neu.edu>          #\n\
 #                             http://mcx.space/                               #\n\
 #                                                                             #\n\
 # Computational Optics & Translational Imaging (COTI) Lab- http://fanglab.org #\n\
@@ -1967,7 +1988,7 @@ $Rev::       $ Last $Date::                       $ by $Author::              $\
 /**
  * @brief Print MCX help information
  *
- * @param[in] str: string to be tested
+ * @param[in] cfg: simulation configuration structure
  * @param[in] exename: path and name of the mcx executable
  */
 
@@ -2052,6 +2073,7 @@ where possible parameters include (the first value in [*|*] is the default)\n\
       combine multiple items by using a string, or add selected numbers together\n\
 \n\
 == Additional options ==\n\
+ --root         [''|string]    full path to the folder storing the input files\n\
  --gscatter     [1e9|int]      after a photon completes the specified number of\n\
                                scattering events, mcx then ignores anisotropy g\n\
                                and only performs isotropic scattering for speed\n\

@@ -36,7 +36,7 @@
 #define JUST_BELOW_ONE     0.9998f                 /**< test for boundary */
 #define SAME_VOXEL         -9999.f                 /**< scatter within a voxel */
 #define NO_LAUNCH          9999                    /**< when fail to launch, for debug */
-#define MAX_PROP_AND_DETECTORS   4000              /**< maximum #property + #detectors */
+#define MAX_PROP_AND_DETECTORS   4000              /**< maximum number of property + number of detectors */
 #define SEED_FROM_FILE      -999                   /**< special flag indicating to read seeds from an mch file for replay */
 
 #define DET_MASK           0xFFFF0000              /**< mask of the upper 16bit to get the detector ID */
@@ -59,5 +59,6 @@
 #define MCX_SRC_LINE       12 /**<  a non-directional line source */
 #define MCX_SRC_SLIT       13 /**<  a collimated line source */
 #define MCX_SRC_PENCILARRAY 14 /**<  a rectangular array of pencil beams */
+#define MCX_SRC_PATTERN3D  15  /**<  a 3D pattern source, starting from srcpos, srcparam1.{x,y,z} define the x/y/z dimensions */
 
 #endif
