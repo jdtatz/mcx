@@ -1,4 +1,4 @@
-﻿import ctypes
+import ctypes
 import os
 import platform
 import numpy as np
@@ -34,7 +34,8 @@ _run_simulation.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.POINTER(cty
 
 class MCX:
     def __init__(self, **kws):
-        super().__setattr__('_cfg', _create_config())
+        super().__setattr__('_cfg_ptr', _create_config())
+        super().__setattr__('_config', dict())
         for key, val in kws.items():
             setattr(self, key, val)
 
@@ -65,15 +66,16 @@ class MCX:
         else:
             raise Exception("Only Booleans, Integers, Floats, Strings, and numpy Arrays may be passed.")
         err = ctypes.c_char_p()
-        if _set_field(self._cfg, key.encode('ASCII'), ptr, dtype, ndim, dims, order, ctypes.byref(err)) != 0:
+        if _set_field(self._cfg_ptr, key.encode('ASCII'), ptr, dtype, ndim, dims, order, ctypes.byref(err)) != 0:
             excep = 'Issue with setting "{}" to ({}) with error "{}".'.format(key, v, err.value.decode('ASCII') if err.value else "Unknown Error")
             raise Exception(excep)
         super().__setattr__(key, v)
+        self._config[key] = v
 
     def get_field(self, key):
         err = ctypes.c_char_p()
         dtype, ndim, dims = ctypes.c_char_p(), ctypes.c_int(), (ctypes.c_int*4)()
-        temp = _get_field(self._cfg, key.encode('ASCII'), ctypes.byref(dtype), ctypes.byref(ndim), dims, ctypes.byref(err))
+        temp = _get_field(self._cfg_ptr, key.encode('ASCII'), ctypes.byref(dtype), ctypes.byref(ndim), dims, ctypes.byref(err))
         if temp is None:
             excep = 'Issue with getting "{}" with error "{}".'.format(key, err.value.decode('ASCII') if err.value else "Unknown Error")
             raise Exception(excep)
@@ -102,7 +104,7 @@ class MCX:
 
     def run(self, nout=2):
         err = ctypes.c_char_p()
-        flag = _run_simulation(self._cfg, nout, ctypes.byref(err))
+        flag = _run_simulation(self._cfg_ptr, nout, ctypes.byref(err))
         if flag != 0:
             excep = 'RunTime error {}: "{}"'.format(flag, err.value.decode('ASCII') if err.value else "Unknown Error")
             raise Exception(excep)
@@ -120,4 +122,11 @@ class MCX:
         return {field: self.get_field(field) for field in fields}
 
     def __del__(self):
-        _destroy_config(self._cfg)
+        _destroy_config(self._cfg_ptr)
+
+    def __getstate__(self):
+        return self._config.copy()
+    
+    def __setstate__(self, state):
+        self.__init__(**state)
+
