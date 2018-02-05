@@ -23,7 +23,7 @@ MCX_EXPORT void* mcx_get_field(Config *cfg, const char *key, char** dtype, int* 
 
 MCX_EXPORT int mcx_wrapped_run_simulation(Config *cfg, int nout, char**err);
 
-MCX_EXPORT int  mcx_validateconfig(Config *cfg, char **errmsg, int seedbyte, float *detps, int *dimdetps);
+MCX_EXPORT int mcx_validateconfig(Config *cfg, char **errmsg, int seedbyte, float *detps, int *dimdetps);
 
 #ifdef __cplusplus
 }

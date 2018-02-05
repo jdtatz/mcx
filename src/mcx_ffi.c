@@ -302,6 +302,8 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
         }
 
         const float* detps = value;
+        if(cfg->replay.weight) free(cfg->replay.weight);
+        if(cfg->replay.tof) free(cfg->replay.tof);
         cfg->replay.weight = (float *)malloc(cfg->nphoton * sizeof(float));
         cfg->replay.tof = (float *)calloc(cfg->nphoton, sizeof(float));
         cfg->nphoton = 0;
@@ -332,6 +334,7 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
                 return -1;
             }
             seedbyte = dims[0];
+            if(cfg->replay.seed) free(cfg->replay.seed);
             cfg->replay.seed = malloc((dims[0]*dims[1]));
             int * dst = cfg->replay.seed;
             SET_MATRIX(dst, F)
@@ -697,6 +700,8 @@ int mcx_validateconfig(Config *cfg, char **errmsg, int seedbyte, float *detps, i
             return -1;
         }
 
+        if(cfg->replay.weight) free(cfg->replay.weight);
+        if(cfg->replay.tof) free(cfg->replay.tof);
         cfg->replay.weight = (float *) malloc(cfg->nphoton * sizeof(float));
         cfg->replay.tof = (float *) calloc(cfg->nphoton, sizeof(float));
 
