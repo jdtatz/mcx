@@ -142,6 +142,7 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
     ELIF_SCALAR(issaveseed)
     ELIF_SCALAR(issaveref)
     ELIF_SCALAR(issaveexit)
+    ELIF_SCALAR(ismomentum)
     ELIF_SCALAR(isrowmajor)
     ELIF_SCALAR(replaydet)
     ELIF_SCALAR(faststep)
@@ -401,7 +402,7 @@ void initialize_output(Config *cfg, int nout) {
     }
     if (nout >= 2) {
         if(cfg->exportdetected) free(cfg->exportdetected);
-        cfg->exportdetected = (float*)malloc((cfg->medianum + 1 + cfg->issaveexit * 6)*cfg->maxdetphoton*sizeof(float));
+        cfg->exportdetected = (float*)malloc((cfg->medianum + 1 + (cfg->issaveexit > 0) * 6 + (cfg->ismomentum > 0)*cfg->medianum)*cfg->maxdetphoton*sizeof(float));
     }
     if (nout >= 4) {
         if(cfg->seeddata) free(cfg->seeddata);
@@ -413,6 +414,11 @@ void initialize_output(Config *cfg, int nout) {
     }
 }
 
+
+#define GET_SCALAR(NAME, TYPE) else if (strcmp(key, #NAME) == 0) {*dtype = TYPE##Type; *ndim=0; return &cfg->NAME; }
+#define GET_VECTOR(NAME, TYPE, D0) else if (strcmp(key, #NAME) == 0) {*dtype = TYPE##Type; *ndim=1; dims[0]=D0; return cfg->NAME; }
+#define GET_MATRIX(NAME, TYPE, D0, D1) else if (strcmp(key, #NAME) == 0) {*dtype = TYPE##Type; *ndim=2; dims[0]=D0; dims[1]=D1; return cfg->NAME; }
+#define GET_CUBE(NAME, TYPE, D0, D1, D2) else if (strcmp(key, #NAME) == 0) {*dtype = TYPE##Type; *ndim=3; dims[0]=D0; dims[1]=D1; dims[2]=D2; return cfg->NAME; }
 
 void* mcx_get_field(Config *cfg, const char *key, char** dtype, int* ndim, unsigned *dims, const char**err) {
     static char * intType = "int";
@@ -429,57 +435,17 @@ void* mcx_get_field(Config *cfg, const char *key, char** dtype, int* ndim, unsig
         dims[2] = cfg->dim.z;
         dims[3] = (cfg->tend - cfg->tstart) / cfg->tstep + 0.5;
         return cfg->exportfield;
-    } else if (strcmp(key, "exportdetected") == 0) {
-        *dtype = floatType;
-        *ndim = 2;
-        dims[0] = cfg->medianum + 1 + cfg->issaveexit * 6;
-        dims[1] = cfg->detectedcount;
-        return cfg->exportdetected;
-    } else if (strcmp(key, "vol") == 0) {
-        *dtype = uintType;
-        *ndim = 3;
-        dims[0] = cfg->dim.x;
-        dims[1] = cfg->dim.y;
-        dims[2] = cfg->dim.z;
-        return cfg->vol;
-    } else if (strcmp(key, "seeddata") == 0) {
-        *dtype = uint8Type;
-        *ndim = 2;
-        dims[0] = (cfg->issaveseed>0)*RAND_WORD_LEN*sizeof(float);
-        dims[1] = cfg->detectedcount;
-        return cfg->seeddata;
-    } else if (strcmp(key, "exportdebugdata") == 0) {
-        *dtype = floatType;
-        *ndim = 2;
-        dims[0] = MCX_DEBUG_REC_LEN;
-        dims[1] = cfg->debugdatalen;
-        return cfg->exportdebugdata;
-    } else if (strcmp(key, "runtime") == 0) {
-        *dtype = uintType;
-        *ndim = 0;
-        return &cfg->runtime;
-    } else if (strcmp(key, "nphoton") == 0) {
-        *dtype = intType;
-        *ndim = 0;
-        return &cfg->nphoton;
-    } else if (strcmp(key, "energytot") == 0) {
-        *dtype = doubleType;
-        *ndim = 0;
-        return &cfg->energytot;
-    } else if (strcmp(key, "energyabs") == 0) {
-        *dtype = doubleType;
-        *ndim = 0;
-        return &cfg->energyabs;
-    } else if (strcmp(key, "normalizer") == 0) {
-        *dtype = floatType;
-        *ndim = 0;
-        return &cfg->normalizer;
-    } else if (strcmp(key, "workload") == 0) {
-        *dtype = floatType;
-        *ndim = 1;
-        dims[0] = MAX_DEVICE;
-        return &cfg->workload;
     }
+    GET_MATRIX(exportdetected, float, cfg->medianum + 1 + (cfg->issaveexit > 0) * 6 + (cfg->ismomentum > 0) * cfg->medianum, cfg->detectedcount)
+    GET_CUBE(vol, uint, cfg->dim.x, cfg->dim.y, cfg->dim.z)
+    GET_MATRIX(seeddata, uint8, (cfg->issaveseed>0)*RAND_WORD_LEN*sizeof(float), cfg->detectedcount)
+    GET_MATRIX(exportdebugdata, float, MCX_DEBUG_REC_LEN, cfg->debugdatalen)
+    GET_SCALAR(runtime, uint)
+    GET_SCALAR(nphoton, int)
+    GET_SCALAR(energytot, double)
+    GET_SCALAR(energyabs, double)
+    GET_SCALAR(normalizer, float)
+    GET_VECTOR(workload, float, MAX_DEVICE)
     static char * invalidErr = "Not yet implemented.";
     *err = invalidErr;
     return NULL;
@@ -648,8 +614,10 @@ int mcx_validateconfig(Config *cfg, char **errmsg, int seedbyte, float *detps, i
     }
     if(cfg->issavedet && cfg->detnum==0)
         cfg->issavedet=0;
-    if(cfg->issavedet==0)
+    if(cfg->issavedet==0){
         cfg->issaveexit=0;
+        cfg->ismomentum=0;
+    }
     if(cfg->seed<0 && cfg->seed!=SEED_FROM_FILE) cfg->seed=time(NULL);
     if((cfg->outputtype==otJacobian || cfg->outputtype==otWP) && cfg->seed!=SEED_FROM_FILE){
         static char * replyErr = "Jacobian output is only valid in the reply mode. Please define cfg.seed";
@@ -676,7 +644,7 @@ int mcx_validateconfig(Config *cfg, char **errmsg, int seedbyte, float *detps, i
     }
     cfg->his.maxmedia=cfg->medianum-1; /*skip medium 0*/
     cfg->his.detnum=cfg->detnum;
-    cfg->his.colcount=cfg->medianum+1+cfg->issaveexit*6; /*column count=maxmedia+2*/
+    cfg->his.colcount=cfg->medianum+1+(cfg->issaveexit > 0)*6+(cfg->ismomentum > 0)*cfg->medianum; /*column count=maxmedia+2*/
 
     /* mcx_replay_prep
      * Pre-computes the detected photon weight and time-of-fly from partial path input for replay

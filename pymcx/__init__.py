@@ -102,24 +102,28 @@ class MCX:
             size = np.prod(shape)
             return np.ctypeslib.as_array(ptr, (size,)).reshape(shape, order='F').copy()
 
+    def __getattr__(self, key):
+        return self.get_field(key)
+
     def run(self, nout=2):
         err = ctypes.c_char_p()
         flag = _run_simulation(self._cfg_ptr, nout, ctypes.byref(err))
         if flag != 0:
             excep = 'RunTime error {}: "{}"'.format(flag, err.value.decode('ASCII') if err.value else "Unknown Error")
             raise Exception(excep)
-        fields = ["runtime", "nphoton", "energytot", "energyabs", "normalizer", "workload"]
+        basic_fields = ["runtime", "nphoton", "energytot", "energyabs", "normalizer", "workload"]
+        result = {field: self.get_field(field) for field in basic_fields}
         if nout >= 1:
-            fields.append("exportfield")
+            result['fluence'] = self.get_field("exportfield")
         if nout >= 2:
-            fields.append("exportdetected")
+            result['detphoton'] = self.get_field("exportdetected")
         if nout >= 3:
-            fields.append("vol")
+            result['vol'] = self.get_field("vol")
         if nout >= 4:
-            fields.append("seeddata")
+            result['seeds'] = self.get_field("seeddata")
         if nout >= 5:
-            fields.append("exportdebugdata")
-        return {field: self.get_field(field) for field in fields}
+            result['trajectory'] = self.get_field("exportdebugdata")
+        return result
 
     def __del__(self):
         _destroy_config(self._cfg_ptr)

@@ -131,6 +131,7 @@ typedef struct  __align__(16) KernelParams {
   unsigned int maxvoidstep;          /**< max steps that photon can travel in the background before entering non-zero voxels */
   unsigned int issaveseed;           /**< flag if one need to save the detected photon seeds for replay */
   unsigned int issaveexit;           /**< flag if one need to save the detected photon positions and dir vectors */
+  unsigned int ismomentum;           /**< flag if one need to save the detected photon momentum */
   unsigned int issaveref;            /**< flag if one need to save diffuse reflectance data in the 0-voxel layer next to the boundary */
   unsigned int seedoffset;           /**< offset of the seed, not used */
   int seed;                          /**< RNG seed passted from the host */
