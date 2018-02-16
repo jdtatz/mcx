@@ -999,10 +999,10 @@ kernel void mcx_main_loop(uint media[],float field[],float genergy[],uint n_seed
      float mom=0.f;
  
      float *ppath=sharedmem+(blockDim.x<<2); ///< first blockDim.x*4 floats in the shared mem store spilled v from all threads
-     float *pmom = ppath;
+
 #ifdef  USE_CACHEBOX
   #ifdef  SAVE_DETECTORS
-     float *cachebox=ppath+(gcfg->savedet ? blockDim.x*gcfg->maxmedia: 0);
+     float *cachebox=ppath+(gcfg->savedet ? blockDim.x*gcfg->maxmedia*(gcfg->ismomentum ? 2 : 1): 0);
   #else
      float *cachebox=ppath;
   #endif
@@ -1012,9 +1012,9 @@ kernel void mcx_main_loop(uint media[],float field[],float genergy[],uint n_seed
 #endif
 
 #ifdef  SAVE_DETECTORS
-     ppath+=threadIdx.x*gcfg->maxmedia; // block#2: maxmedia*thread number to store the partial
+     ppath+=threadIdx.x*gcfg->maxmedia*(gcfg->ismomentum ? 2 : 1); // block#2: maxmedia*thread number to store the partial
      if(gcfg->savedet) clearpath(ppath,gcfg->maxmedia);
-     pmom = ppath + threadIdx.x*gcfg->maxmedia;
+     float *pmom = ppath + gcfg->maxmedia;
      if(gcfg->savedet && gcfg->ismomentum) clearpath(pmom,gcfg->maxmedia);
 #endif
 
