@@ -1096,7 +1096,7 @@ kernel void mcx_main_loop(uint media[],float field[],float genergy[],uint n_seed
 		       else
                            rotatevector(v,stheta,ctheta,sphi,cphi);
                        v->nscat++;
-                       mom = (1.f - ctheta);
+                       mom += (1.f - ctheta);
 		       
 		       /** Only compute the reciprocal vector when v is changed, this saves division calculations, which are very expensive on the GPU */
                        rv=float3(__fdividef(1.f,v->x),__fdividef(1.f,v->y),__fdividef(1.f,v->z));
@@ -1548,7 +1548,7 @@ void mcx_run_simulation(Config *cfg,GPUInfo *gpu){
      uint   *gPseed,*gdetected;
      float  *gPdet,*gsrcpattern=NULL,*gfield,*genergy,*greplayw=NULL,*greplaytof=NULL,*gdebugdata=NULL;
      RandType *gseeddata=NULL;
-     int detreclen=cfg->medianum+1+(cfg->issaveexit>0)*6+(cfg->ismomentum>0)*cfg->medianum;
+     int detreclen=cfg->medianum+1+(cfg->issaveexit>0)*6+(cfg->ismomentum>0)*(cfg->medianum - 1);
      unsigned int is2d=(cfg->dim.x==1 ? 1 : (cfg->dim.y==1 ? 2 : (cfg->dim.z==1 ? 3 : 0)));
      MCXParam param={cfg->steps,minstep,0,0,cfg->tend,R_C0*cfg->unitinmm,
                      (uint)cfg->issave2pt,(uint)cfg->isreflect,(uint)cfg->isrefint,(uint)cfg->issavedet,1.f/cfg->tstep,

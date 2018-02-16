@@ -402,7 +402,7 @@ void initialize_output(Config *cfg, int nout) {
     }
     if (nout >= 2) {
         if(cfg->exportdetected) free(cfg->exportdetected);
-        cfg->exportdetected = (float*)malloc((cfg->medianum + 1 + (cfg->issaveexit > 0) * 6 + (cfg->ismomentum > 0)*cfg->medianum)*cfg->maxdetphoton*sizeof(float));
+        cfg->exportdetected = (float*)malloc((cfg->medianum + 1 + (cfg->issaveexit > 0) * 6 + (cfg->ismomentum > 0)*(cfg->medianum - 1))*cfg->maxdetphoton*sizeof(float));
     }
     if (nout >= 4) {
         if(cfg->seeddata) free(cfg->seeddata);
@@ -436,7 +436,7 @@ void* mcx_get_field(Config *cfg, const char *key, char** dtype, int* ndim, unsig
         dims[3] = (cfg->tend - cfg->tstart) / cfg->tstep + 0.5;
         return cfg->exportfield;
     }
-    GET_MATRIX(exportdetected, float, cfg->medianum + 1 + (cfg->issaveexit > 0) * 6 + (cfg->ismomentum > 0) * cfg->medianum, cfg->detectedcount)
+    GET_MATRIX(exportdetected, float, cfg->medianum + 1 + (cfg->issaveexit > 0) * 6 + (cfg->ismomentum > 0) * (cfg->medianum - 1), cfg->detectedcount)
     GET_CUBE(vol, uint, cfg->dim.x, cfg->dim.y, cfg->dim.z)
     GET_MATRIX(seeddata, uint8, (cfg->issaveseed>0)*RAND_WORD_LEN*sizeof(float), cfg->detectedcount)
     GET_MATRIX(exportdebugdata, float, MCX_DEBUG_REC_LEN, cfg->debugdatalen)
@@ -644,7 +644,7 @@ int mcx_validateconfig(Config *cfg, char **errmsg, int seedbyte, float *detps, i
     }
     cfg->his.maxmedia=cfg->medianum-1; /*skip medium 0*/
     cfg->his.detnum=cfg->detnum;
-    cfg->his.colcount=cfg->medianum+1+(cfg->issaveexit > 0)*6+(cfg->ismomentum > 0)*cfg->medianum; /*column count=maxmedia+2*/
+    cfg->his.colcount=cfg->medianum+1+(cfg->issaveexit > 0)*6+(cfg->ismomentum > 0)*(cfg->medianum - 1); /*column count=maxmedia+2*/
 
     /* mcx_replay_prep
      * Pre-computes the detected photon weight and time-of-fly from partial path input for replay
