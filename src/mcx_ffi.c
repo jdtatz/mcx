@@ -52,9 +52,7 @@ void mcx_destroy_config(Config * cfg){
 #define SET_VOL_2F(DST, SRC) if(*order=='F') {SET_VOL_LOOP(DST, SRC, F, F)} else {SET_VOL_LOOP(DST, SRC, F, C)}
 
 #define TYPE_SAFE_PTR_SETTER(DST, SETTER) \
-if (strcmp(dtype, "char") == 0) {\
-SETTER(DST, ((char*)value))\
-} else if (strcmp(dtype, "int") == 0) {\
+if (strcmp(dtype, "int") == 0) {\
 SETTER(DST, ((int*)value))\
 } else if (strcmp(dtype, "uint") == 0) {\
 SETTER(DST, ((uint*)value))\
@@ -78,6 +76,10 @@ SETTER(DST, ((uint32_t*)value))\
 SETTER(DST, ((int64_t*)value))\
 } else if (strcmp(dtype, "uint64") == 0) {\
 SETTER(DST, ((uint64_t*)value))\
+} else if (strcmp(dtype, "char") == 0) {\
+SETTER(DST, ((char*)value))\
+} else if (strcmp(dtype, "bool") == 0) {\
+SETTER(DST, ((_Bool*)value))\
 } else {\
     *err = typeErr;\
     return -1;\

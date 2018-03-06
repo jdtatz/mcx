@@ -41,30 +41,21 @@ class MCX:
 
     def __setattr__(self, key, v):
         ndim, dims, order = 0, None, b'C'
-        if v is True or v is False:
-            ptr = ctypes.byref(ctypes.c_char(v))
-            dtype = b"char"
-        elif isinstance(v, int):
-            ptr = ctypes.byref(ctypes.c_int(v))
-            dtype = b"int"
-        elif isinstance(v, float):
-            ptr =  ctypes.byref(ctypes.c_float(v))
-            dtype = b"float"
-        elif isinstance(v, str):
-            ptr = ctypes.c_char_p(v.encode('ASCII'))
+        if isinstance(v, bytes) or isinstance(v, str):
+            val = v if isinstance(v, bytes) else (v.encode('ASCII'))
+            ptr = ctypes.c_char_p(val)
             dtype = b"string"
             ndim = 1
-            dims = ctypes.pointer(ctypes.c_int(len(v)+1))
-        elif isinstance(v, np.ndarray):
-            if not v.flags.f_contiguous and not v.flags.c_contiguous:
-                raise Exception('Numpy arrays must be contiguous')
-            ptr = v.ctypes
-            dtype = str(v.dtype).encode('ASCII')
-            ndim = v.ndim
-            dims = (ctypes.c_int*v.ndim)(*v.shape)
-            order = v.flags.f_contiguous and b'F' or b'C'
+            dims = ctypes.pointer(ctypes.c_int(len(val)+1))
         else:
-            raise Exception("Only Booleans, Integers, Floats, Strings, and numpy Arrays may be passed.")
+            arr = np.asanyarray(v)
+            if not arr.flags.f_contiguous and not arr.flags.c_contiguous:
+                raise Exception('Numpy arrays must be contiguous')
+            ptr = arr.ctypes
+            dtype = str(arr.dtype).encode('ASCII')
+            ndim = arr.ndim
+            dims = (ctypes.c_int*ndim)(*arr.shape)
+            order = arr.flags.f_contiguous and b'F' or b'C'
         err = ctypes.c_char_p()
         if _set_field(self._cfg_ptr, key.encode('ASCII'), ptr, dtype, ndim, dims, order, ctypes.byref(err)) != 0:
             excep = 'Issue with setting "{}" to ({}) with error "{}".'.format(key, v, err.value.decode('ASCII') if err.value else "Unknown Error")
