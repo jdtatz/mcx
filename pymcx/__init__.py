@@ -12,14 +12,14 @@ def _grab_fstream(stream=sys.__stdout__):
     pipe_out, pipe_in = os.pipe()
     copy = os.dup(fd)
     os.dup2(pipe_in, fd)
-    yield
+    hold = []
+    yield hold
     end = b'\b'
     os.write(pipe_in, end)
     stream.flush()
-    out = b''.join(iter(lambda: (os.read(pipe_out, 1) or end), end)).decode()
+    hold.append(b''.join(iter(lambda: (os.read(pipe_out, 1) or end), end)).decode())
     os.close(pipe_out)
     os.dup2(copy, fd)
-    print(out)
 
 
 if platform.system() == 'Windows':
@@ -117,7 +117,7 @@ class MCX:
 
     def run(self, nout=2):
         err = ctypes.c_char_p()
-        with _grab_fstream():
+        with _grab_fstream() as hold:
             flag = _run_simulation(self._cfg_ptr, nout, ctypes.byref(err))
         if flag != 0:
             excep = 'RunTime error {}: "{}"'.format(flag, err.value.decode('ASCII') if err.value else "Unknown Error")
@@ -134,6 +134,7 @@ class MCX:
             result['seeds'] = self.get_field("seeddata")
         if nout >= 5:
             result['trajectory'] = self.get_field("exportdebugdata")
+        result['stdout'] = hold.pop()
         return result
 
     def __del__(self):
