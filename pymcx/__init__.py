@@ -1,7 +1,26 @@
 import ctypes
 import os
+import sys
 import platform
 import numpy as np
+from contextlib import contextmanager
+
+
+@contextmanager
+def _grab_fstream(stream=sys.__stdout__):
+    fd = stream.fileno()
+    pipe_out, pipe_in = os.pipe()
+    copy = os.dup(fd)
+    os.dup2(pipe_in, fd)
+    yield
+    end = b'\b'
+    os.write(pipe_in, end)
+    stream.flush()
+    out = b''.join(iter(lambda: (os.read(pipe_out, 1) or end), end)).decode()
+    os.close(pipe_out)
+    os.dup2(copy, fd)
+    print(out)
+
 
 if platform.system() == 'Windows':
     _libname = 'libmcx.dll'
@@ -98,7 +117,8 @@ class MCX:
 
     def run(self, nout=2):
         err = ctypes.c_char_p()
-        flag = _run_simulation(self._cfg_ptr, nout, ctypes.byref(err))
+        with _grab_fstream():
+            flag = _run_simulation(self._cfg_ptr, nout, ctypes.byref(err))
         if flag != 0:
             excep = 'RunTime error {}: "{}"'.format(flag, err.value.decode('ASCII') if err.value else "Unknown Error")
             raise Exception(excep)
