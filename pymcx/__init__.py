@@ -19,7 +19,9 @@ def _grab_fstream(stream=sys.__stdout__):
     stream.flush()
     hold.append(b''.join(iter(lambda: (os.read(pipe_out, 1) or end), end)).decode())
     os.close(pipe_out)
+    os.close(pipe_in)
     os.dup2(copy, fd)
+    os.close(copy)
 
 
 if platform.system() == 'Windows':
