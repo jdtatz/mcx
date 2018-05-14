@@ -74,3 +74,12 @@ if(MATLAB_found)
 endif()
 
 SET_TARGET_PROPERTIES(libmcx PROPERTIES PREFIX "")
+
+find_package(PythonInterp 3)
+if(PYTHONINTERP_FOUND)
+    add_custom_target(pymcx DEPENDS libmcx
+        COMMAND "${CMAKE_COMMAND}" -E copy "$<TARGET_FILE:libmcx>" "${CMAKE_BINARY_DIR}/pymcx/$<TARGET_FILE_NAME:libmcx>"
+        COMMAND "${CMAKE_COMMAND}" -E copy "${CMAKE_SOURCE_DIR}/pymcx/__init__.py" "${CMAKE_BINARY_DIR}/pymcx/__init__.py"
+        COMMAND "${PYTHON_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/setup.py" "bdist_wheel" "-d${CMAKE_BINARY_DIR}"
+    )
+endif()
