@@ -1,1 +1,6 @@
 Rakefile
+*.o
+*.so
+*.dll
+*.dylib
+
