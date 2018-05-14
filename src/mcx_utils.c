@@ -478,10 +478,8 @@ void mcx_flush(Config *cfg){
 }
 
 static jmp_buf  * mcx_error_jmp_buf_env = NULL;  /**< jump buffer for C-syle error handling for shared libray*/
-static char * errMsg;
 #ifdef _OPENMP
 #pragma omp threadprivate(mcx_error_jmp_buf_env)
-#pragma omp threadprivate(errMsg)
 #endif
 
 /**
@@ -493,17 +491,6 @@ static char * errMsg;
 void mcx_set_error_handler(jmp_buf * bufp) {
 	mcx_error_jmp_buf_env = bufp;
 }
-
-/**
-* @brief Function to get error message
-*
-* @param[out] errMsg: the error message
-*/
-
-char * mcx_get_error_message() {
-	return errMsg;
-}
- 
 
 /**
  * @brief Error reporting function
@@ -518,20 +505,17 @@ void mcx_error(const int id,const char *msg,const char *file,const int linenum){
 #ifdef MCX_CONTAINER
      mcx_throw_exception(id,msg,file,linenum);
 #else
-	if (mcx_error_jmp_buf_env == NULL) {
-		MCX_FPRINTF(stderr, "\nMCX ERROR(%d):%s in unit %s:%d\n", id, msg, file, linenum);
-		if (id == -CUDA_ERROR_LAUNCH_TIMEOUT) {
-			fprintf(stderr, "This error often happens when you are using a non-dedicated GPU.\n\
+	MCX_FPRINTF(stderr, "\nMCX ERROR(%d):%s in unit %s:%d\n", id, msg, file, linenum);
+	if (id == -CUDA_ERROR_LAUNCH_TIMEOUT) {
+		fprintf(stderr, "This error often happens when you are using a non-dedicated GPU.\n\
 Please checkout FAQ #1 for more details:\n\
 URL: http://mcx.sf.net/cgi-bin/index.cgi?Doc/FAQ\n");
-		}
+	}
+	if (mcx_error_jmp_buf_env == NULL) {
 		exit(id);
 	} else {
-		errMsg = malloc(1024);
-		snprintf(errMsg, 1024, "MCX ERROR(%d):%s in unit %s:%d\n", id, msg, file, linenum);
-		errMsg[1023] = '\0';
 		longjmp(*mcx_error_jmp_buf_env, id);
-	} 
+	}
 #endif
 }
 

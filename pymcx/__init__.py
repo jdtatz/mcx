@@ -7,7 +7,7 @@ from contextlib import contextmanager
 
 
 @contextmanager
-def _grab_fstream(stream=sys.__stdout__):
+def _grab_fstream(stream):
     fd = stream.fileno()
     pipe_out, pipe_in = os.pipe()
     copy = os.dup(fd)
@@ -102,6 +102,8 @@ class MCX:
             ptr = ctypes.cast(temp, ctypes.POINTER(ctypes.c_double))
         elif dtype == "uint8":
             ptr = ctypes.cast(temp, ctypes.POINTER(ctypes.c_uint8))
+        elif dtype == "char":
+            ptr = ctypes.cast(temp, ctypes.POINTER(ctypes.c_char))
         else:
             raise Exception('Unknown type returned')
         ndim = ndim.value
@@ -119,10 +121,12 @@ class MCX:
 
     def run(self, nout=2):
         err = ctypes.c_char_p()
-        with _grab_fstream() as hold:
-            flag = _run_simulation(self._cfg_ptr, nout, ctypes.byref(err))
+        with _grab_fstream(sys.__stderr__) as hold_stderr:
+            with _grab_fstream(sys.__stdout__) as hold_stdout:
+                flag = _run_simulation(self._cfg_ptr, nout, ctypes.byref(err))
         if flag != 0:
-            excep = 'RunTime error {}: "{}"'.format(flag, err.value.decode('ASCII') if err.value else "Unknown Error")
+            msg = hold_stderr.pop() if flag > 0 else (err.value.decode('ASCII') if err.value else "Unknown Error")
+            excep = 'RunTime error: "{}"'.format(msg)
             raise Exception(excep)
         basic_fields = ["runtime", "nphoton", "energytot", "energyabs", "normalizer", "workload"]
         result = {field: self.get_field(field) for field in basic_fields}
@@ -136,7 +140,7 @@ class MCX:
             result['seeds'] = self.get_field("seeddata")
         if nout >= 5:
             result['trajectory'] = self.get_field("exportdebugdata")
-        result['stdout'] = hold.pop()
+        result['stdout'] = hold_stdout.pop()
         return result
 
     def __del__(self):

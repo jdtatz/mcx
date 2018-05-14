@@ -56,7 +56,7 @@ if (strcmp(dtype, "int") == 0) {\
 SETTER(DST, ((int*)value))\
 } else if (strcmp(dtype, "uint") == 0) {\
 SETTER(DST, ((uint*)value))\
-} else if (strcmp(dtype, "float") == 0 || strcmp(dtype, "float32") == 0) {\
+} else if (strcmp(dtype, "float") == 0 || strcmp(dtype, "float32") == 0 || strcmp(dtype, "single") == 0) {\
 SETTER(DST, ((float*)value))\
 } else if (strcmp(dtype, "double") == 0 || strcmp(dtype, "float64") == 0) {\
 SETTER(DST, ((double*)value))\
@@ -372,8 +372,7 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
         for(int i=0;i<MAX_DEVICE;i++)
             if(cfg->deviceid[i]=='0')
                 cfg->deviceid[i]='\0';
-    }
-    else if(strcmp(key,"workload")==0){
+    } else if(strcmp(key,"workload")==0){
         if(ndim != 1){
             *err = ndimErr;
             return -1;
@@ -382,7 +381,14 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
             return -1;
         }
         SET_VECTOR(cfg->workload)
-    }else{
+    } else if(strcmp(key,"flog")==0){
+        if(strcmp(dtype, "file")==0){
+            cfg->flog = (FILE*)value;
+        } else {
+            *err = typeErr;
+            return -1;
+        }
+    } else {
         static char * unkErr = "Unknown Field Given";
         *err = unkErr;
         return -1;
@@ -418,6 +424,8 @@ void initialize_output(Config *cfg, int nout) {
 
 
 #define GET_SCALAR(NAME, TYPE) else if (strcmp(key, #NAME) == 0) {*dtype = TYPE##Type; *ndim=0; return &cfg->NAME; }
+#define GET_VEC3(NAME, TYPE) else if (strcmp(key, #NAME) == 0) {*dtype = TYPE##Type; *ndim=1; dims[0]=3; return &cfg->NAME; }
+#define GET_VEC4(NAME, TYPE) else if (strcmp(key, #NAME) == 0) {*dtype = TYPE##Type; *ndim=1; dims[0]=4; return &cfg->NAME; }
 #define GET_VECTOR(NAME, TYPE, D0) else if (strcmp(key, #NAME) == 0) {*dtype = TYPE##Type; *ndim=1; dims[0]=D0; return cfg->NAME; }
 #define GET_MATRIX(NAME, TYPE, D0, D1) else if (strcmp(key, #NAME) == 0) {*dtype = TYPE##Type; *ndim=2; dims[0]=D0; dims[1]=D1; return cfg->NAME; }
 #define GET_CUBE(NAME, TYPE, D0, D1, D2) else if (strcmp(key, #NAME) == 0) {*dtype = TYPE##Type; *ndim=3; dims[0]=D0; dims[1]=D1; dims[2]=D2; return cfg->NAME; }
@@ -428,6 +436,7 @@ void* mcx_get_field(Config *cfg, const char *key, char** dtype, int* ndim, unsig
     static char * floatType = "float";
     static char * doubleType = "double";
     static char * uint8Type = "uint8";
+    static char * charType = "char";
 
     if (strcmp(key, "exportfield") == 0) {
         *dtype = floatType;
@@ -442,15 +451,15 @@ void* mcx_get_field(Config *cfg, const char *key, char** dtype, int* ndim, unsig
     GET_SCALAR(nblocksize, uint)
     GET_SCALAR(nthread, uint)
     GET_SCALAR(seed, int)
-    GET_VECTOR(srcpos, float, 4)
-    GET_VECTOR(srcdir, float, 4)
+    GET_VEC4(srcpos, float)
+    GET_VEC4(srcdir, float)
     GET_SCALAR(tstart, float)
     GET_SCALAR(tstep, float)
     GET_SCALAR(tend, float)
-    GET_VECTOR(steps, float, 3)
-    GET_VECTOR(dim, uint, 3)
-    GET_VECTOR(crop0, uint, 3)
-    GET_VECTOR(crop1, uint, 3)
+    GET_VEC3(steps, float)
+    GET_VEC3(dim, uint)
+    GET_VEC3(crop0, uint)
+    GET_VEC3(crop1, uint)
     GET_SCALAR(medianum, uint)
     GET_SCALAR(detnum, uint)
     GET_SCALAR(maxdetphoton, uint)
@@ -494,8 +503,8 @@ void* mcx_get_field(Config *cfg, const char *key, char** dtype, int* ndim, unsig
     //GET_VECTOR(shapedata, char, 0)
     GET_SCALAR(maxvoidstep, int)
     GET_SCALAR(voidtime, int)
-    GET_VECTOR(srcparam1, float, 4)
-    GET_VECTOR(srcparam2, float, 4)
+    GET_VEC4(srcparam1, float)
+    GET_VEC4(srcparam2, float)
     //GET_MATRIX(srcpattern, float, 0, 0)
     //GET_SCALAR(replay, Replay)
     GET_MATRIX(seeddata, uint8, (cfg->issaveseed>0)*RAND_WORD_LEN*sizeof(float), cfg->detectedcount)
@@ -526,8 +535,7 @@ int mcx_wrapped_run_simulation(Config *cfg, int nout, char**err) {
     memcpy(temp_gpu_workaround, cfg->deviceid, MAX_DEVICE);
 
     GPUInfo *gpuinfo;
-    int threadid = 0, errorflag = 0;
-    char *errors[MAX_DEVICE];
+    int errorflag = 0;
     int activedev = mcx_list_gpu(cfg, &gpuinfo);
     if(activedev == 0){
         static char * noGpuErr = "No active GPU device found";
@@ -542,18 +550,15 @@ int mcx_wrapped_run_simulation(Config *cfg, int nout, char**err) {
     initialize_output(cfg, nout);
 #ifdef _OPENMP
     omp_set_num_threads(activedev);
-#pragma omp parallel shared(errorflag, errors)
+#pragma omp parallel shared(errorflag)
     {
-        threadid = omp_get_thread_num();
 #endif
         jmp_buf errHandler;
         if (setjmp(errHandler) == 0) {
             mcx_set_error_handler(&errHandler);
             mcx_run_simulation(cfg, gpuinfo);
-            errors[threadid] = NULL;
         } else {
             errorflag++;
-            errors[threadid] = mcx_get_error_message();
         }
         mcx_set_error_handler(NULL);
 #ifdef _OPENMP
@@ -561,21 +566,7 @@ int mcx_wrapped_run_simulation(Config *cfg, int nout, char**err) {
 #endif
     mcx_cleargpuinfo(&gpuinfo);
     memcpy(cfg->deviceid, temp_gpu_workaround, MAX_DEVICE);
-    if (errorflag) {
-        size_t len = 0;
-        *err = malloc(1024);
-        *err[1023] = '\0';
-        for (int i = 0, j=0; i < activedev && j < errorflag; i++) {
-            if (errors[i] != NULL) {
-                strncpy(*err+len, errors[i], 1023-len);
-                len += strlen(errors[i]);
-                free(errors[i]);
-                j++;
-            }
-        }
-        return -1;
-    }
-    return 0;
+    return errorflag;
 }
 
 
