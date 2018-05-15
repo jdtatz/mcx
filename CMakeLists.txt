@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.9)
 project(MCX LANGUAGES C CXX CUDA)
 
+set(PACKAGE_VERSION "0.0.1")
+
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -45,9 +47,9 @@ option(USE_LOGISTIC_RNG "Use Logistic Lattice ring 5 RNG" OFF)
 
 if(USE_XORSHIFT128P_RAND)
     set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -DUSE_XORSHIFT128P_RAND")
-elif(USE_POSIX_RAND)
+elseif(USE_POSIX_RAND)
     set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -DUSE_POSIX_RAND")
-elif(USE_MT_RAND)
+elseif(USE_MT_RAND)
     set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -DUSE_MT_RAND")
 endif()
 
@@ -79,9 +81,18 @@ SET_TARGET_PROPERTIES(libmcx PROPERTIES PREFIX "")
 
 find_package(PythonInterp)
 if(PYTHONINTERP_FOUND)
-    add_custom_target(pymcx ALL DEPENDS libmcx
+    set(SETUP_PY_IN "${CMAKE_SOURCE_DIR}/setup.py.in")
+    set(SETUP_PY "${CMAKE_BINARY_DIR}/setup.py")
+    set(OUTPUT "${CMAKE_BINARY_DIR}/pymcx_timestamp")
+
+    configure_file(${SETUP_PY_IN} ${SETUP_PY})
+
+    add_custom_command(OUTPUT ${OUTPUT} DEPENDS libmcx "${CMAKE_SOURCE_DIR}/pymcx/__init__.py"
         COMMAND "${CMAKE_COMMAND}" -E copy "$<TARGET_FILE:libmcx>" "${CMAKE_BINARY_DIR}/pymcx/$<TARGET_FILE_NAME:libmcx>"
         COMMAND "${CMAKE_COMMAND}" -E copy "${CMAKE_SOURCE_DIR}/pymcx/__init__.py" "${CMAKE_BINARY_DIR}/pymcx/__init__.py"
-        COMMAND "${PYTHON_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/setup.py" "bdist_wheel" "-d${CMAKE_BINARY_DIR}"
+        COMMAND "${PYTHON_EXECUTABLE}" "setup.py" "build" "-bbuild_pymcx" "bdist_wheel" "-bbuild_pymcx_whl"
+        COMMAND ${CMAKE_COMMAND} -E touch ${OUTPUT}
     )
+
+    add_custom_target(pymcx ALL DEPENDS ${OUTPUT})
 endif()

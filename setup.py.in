@@ -17,15 +17,13 @@ else:
 
 setup(
     name='pymcx',
-    version='0.1',
+    version='${PACKAGE_VERSION}',
     description='MCX Library',
     author='Qianqian Fang',
     url='https://github.com/fangq/mcx',
     install_requires=['numpy'],
     packages=['pymcx'],
-    package_data={
-        'pymcx': [libname],
-    },
+    package_data={'pymcx': [libname]},
     include_package_data=True,
     zip_safe=False,
     distclass=BinaryDistribution
