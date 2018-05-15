@@ -50,12 +50,10 @@ elif(USE_MT_RAND)
     set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -DUSE_MT_RAND")
 endif()
 
-find_package(OpenMP)
-if (OPENMP_C_FOUND AND OPENMP_CXX_FOUND)
-    set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
-    set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
-    set (CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcompiler=\"${OpenMP_CXX_FLAGS}\"")
-endif()
+find_package(OpenMP REQUIRED)
+set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
+set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+set (CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcompiler=\"${OpenMP_CXX_FLAGS}\"")
 
 include_directories(${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
 
@@ -68,16 +66,19 @@ SET (SRCS src/mcx_core.cu src/mcx_core.h
 add_library(libmcx SHARED src/mcx_ffi.c src/mcx_ffi.h ${SRCS})
 add_executable(mcx src/mcextreme.c ${SRCS})
 
+target_link_libraries(libmcx ${OpenMP_CXX_LIBRARIES})
+target_link_libraries(mcx ${OpenMP_CXX_LIBRARIES})
+
 find_package(MATLAB COMPONENTS MEX_COMPILER)
 if(MATLAB_found)
-    matlab_add_mex(mcxlab SHARED src/mcxlab.cpp ${SRCS})
+    matlab_add_mex(mcxlab SHARED src/mcxlab.cpp ${SRCS} LINK_TO ${OpenMP_CXX_LIBRARIES})
 endif()
 
 SET_TARGET_PROPERTIES(libmcx PROPERTIES PREFIX "")
 
 find_package(PythonInterp 3)
 if(PYTHONINTERP_FOUND)
-    add_custom_target(pymcx DEPENDS libmcx
+    add_custom_target(pymcx ALL DEPENDS libmcx
         COMMAND "${CMAKE_COMMAND}" -E copy "$<TARGET_FILE:libmcx>" "${CMAKE_BINARY_DIR}/pymcx/$<TARGET_FILE_NAME:libmcx>"
         COMMAND "${CMAKE_COMMAND}" -E copy "${CMAKE_SOURCE_DIR}/pymcx/__init__.py" "${CMAKE_BINARY_DIR}/pymcx/__init__.py"
         COMMAND "${PYTHON_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/setup.py" "bdist_wheel" "-d${CMAKE_BINARY_DIR}"

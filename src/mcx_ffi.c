@@ -541,10 +541,12 @@ int mcx_wrapped_run_simulation(Config *cfg, int nout, char**err) {
         static char * noGpuErr = "No active GPU device found";
         *err = noGpuErr;
         mcx_cleargpuinfo(&gpuinfo);
+        memcpy(cfg->deviceid, temp_gpu_workaround, MAX_DEVICE);
         return -1;
     }
     if(mcx_validateconfig(cfg, err, 0, NULL, NULL)) {
         mcx_cleargpuinfo(&gpuinfo);
+        memcpy(cfg->deviceid, temp_gpu_workaround, MAX_DEVICE);
         return -1;
     }
     initialize_output(cfg, nout);
