@@ -1,3 +1,4 @@
+from __future__ import unicode_literals
 import ctypes
 import os
 import sys
@@ -53,10 +54,10 @@ _run_simulation.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.POINTER(cty
 
 
 
-class MCX:
+class MCX(object):
     def __init__(self, **kws):
-        super().__setattr__('_cfg_ptr', _create_config())
-        super().__setattr__('_config', dict())
+        super(MCX, self).__setattr__('_cfg_ptr', _create_config())
+        super(MCX, self).__setattr__('_config', dict())
         for key, val in kws.items():
             setattr(self, key, val)
 
@@ -81,7 +82,7 @@ class MCX:
         if _set_field(self._cfg_ptr, key.encode('ASCII'), ptr, dtype, ndim, dims, order, ctypes.byref(err)) != 0:
             excep = 'Issue with setting "{}" to ({}) with error "{}".'.format(key, v, err.value.decode('ASCII') if err.value else "Unknown Error")
             raise Exception(excep)
-        super().__setattr__(key, v)
+        super(MCX, self).__setattr__(key, v)
         self._config[key] = v
 
     def get_field(self, key):

@@ -77,7 +77,7 @@ endif()
 
 SET_TARGET_PROPERTIES(libmcx PROPERTIES PREFIX "")
 
-find_package(PythonInterp 3)
+find_package(PythonInterp)
 if(PYTHONINTERP_FOUND)
     add_custom_target(pymcx ALL DEPENDS libmcx
         COMMAND "${CMAKE_COMMAND}" -E copy "$<TARGET_FILE:libmcx>" "${CMAKE_BINARY_DIR}/pymcx/$<TARGET_FILE_NAME:libmcx>"

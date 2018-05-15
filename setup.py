@@ -21,7 +21,6 @@ setup(
     description='MCX Library',
     author='Qianqian Fang',
     url='https://github.com/fangq/mcx',
-    python_requires='>=3',
     install_requires=['numpy'],
     packages=['pymcx'],
     package_data={
