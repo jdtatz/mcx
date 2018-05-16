@@ -85,7 +85,7 @@ class MCX(object):
         super(MCX, self).__setattr__(key, v)
         self._config[key] = v
 
-    def get_field(self, key):
+    def get_field(self, key, share_memory=False):
         err = ctypes.c_char_p()
         dtype, ndim, dims = ctypes.c_char_p(), ctypes.c_int(), (ctypes.c_int*4)()
         temp = _get_field(self._cfg_ptr, key.encode('ASCII'), ctypes.byref(dtype), ctypes.byref(ndim), dims, ctypes.byref(err))
@@ -111,16 +111,18 @@ class MCX(object):
         if ndim == 0:
             return ptr[0]
         elif ndim == 1:
-            return np.ctypeslib.as_array(ptr, (dims[0],)).copy()
+            arr = np.ctypeslib.as_array(ptr, (dims[0],))
+            return arr.copy() if share_memory else arr
         else:
             shape = tuple(dims[i] for i in range(ndim))
             size = np.prod(shape)
-            return np.ctypeslib.as_array(ptr, (size,)).reshape(shape, order='F').copy()
+            arr = np.ctypeslib.as_array(ptr, (size,)).reshape(shape, order='F')
+            return arr.copy() if share_memory else arr
 
     def __getattr__(self, key):
         return self.get_field(key)
 
-    def run(self, nout=2):
+    def run(self, nout=2, share_memory=False):
         err = ctypes.c_char_p()
         with _grab_fstream(sys.__stderr__) as hold_stderr:
             with _grab_fstream(sys.__stdout__) as hold_stdout:
@@ -130,17 +132,17 @@ class MCX(object):
             excep = 'RunTime error: "{}"'.format(msg)
             raise Exception(excep)
         basic_fields = ["runtime", "nphoton", "energytot", "energyabs", "normalizer", "workload"]
-        result = {field: self.get_field(field) for field in basic_fields}
+        result = {field: self.get_field(field, share_memory) for field in basic_fields}
         if nout >= 1:
-            result['fluence'] = self.get_field("exportfield")
+            result['fluence'] = self.get_field("exportfield", share_memory)
         if nout >= 2:
-            result['detphoton'] = self.get_field("exportdetected")
+            result['detphoton'] = self.get_field("exportdetected", share_memory)
         if nout >= 3:
-            result['vol'] = self.get_field("vol")
+            result['vol'] = self.get_field("vol", share_memory)
         if nout >= 4:
-            result['seeds'] = self.get_field("seeddata")
+            result['seeds'] = self.get_field("seeddata", share_memory)
         if nout >= 5:
-            result['trajectory'] = self.get_field("exportdebugdata")
+            result['trajectory'] = self.get_field("exportdebugdata", share_memory)
         result['stdout'] = hold_stdout.pop()
         return result
 
