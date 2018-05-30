@@ -329,7 +329,7 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
         }
     } else if(strcmp(key,"seed")==0){
         if(ndim == 0){
-            cfg->seed = *((int*)value);
+            SET_SCALAR(cfg->seed);
         } else if(ndim == 2){
             if(dims[0]!=sizeof(float)*RAND_WORD_LEN){
                 static char * seedErr = "the row number of cfg.seed does not match RNG seed byte-length";
