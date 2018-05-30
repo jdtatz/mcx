@@ -117,7 +117,7 @@ class MCX(object):
             shape = tuple(dims[i] for i in range(ndim))
             size = np.prod(shape)
             arr = np.ctypeslib.as_array(ptr, (size,)).reshape(shape, order='F')
-            return arr.copy() if share_memory else arr
+            return arr if share_memory else arr.copy()
 
     def __getattr__(self, key):
         return self.get_field(key)
