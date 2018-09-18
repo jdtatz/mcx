@@ -1007,10 +1007,8 @@ kernel void mcx_main_loop(uint media[],float field[],float genergy[],uint n_seed
      float len, slen;
      float w0,Lmove;
      int   flipdir=-1;
-     float mom=0.f;
  
      float *ppath=sharedmem+(blockDim.x<<2); ///< first blockDim.x*4 floats in the shared mem store spilled v from all threads
-
 #ifdef  USE_CACHEBOX
   #ifdef  SAVE_DETECTORS
      float *cachebox=ppath+(gcfg->savedet ? blockDim.x*gcfg->maxmedia*(gcfg->ismomentum ? 2 : 1): 0);
@@ -1109,7 +1107,6 @@ kernel void mcx_main_loop(uint media[],float field[],float genergy[],uint n_seed
 		       else
                            rotatevector(v,stheta,ctheta,sphi,cphi);
                        v->nscat++;
-                       mom += (1.f - ctheta);
 		       
 		       /** Only compute the reciprocal vector when v is changed, this saves division calculations, which are very expensive on the GPU */
                        rv=float3(__fdividef(1.f,v->x),__fdividef(1.f,v->y),__fdividef(1.f,v->z));
@@ -1173,7 +1170,7 @@ kernel void mcx_main_loop(uint media[],float field[],float genergy[],uint n_seed
           if(gcfg->savedet)
 	      ppath[(mediaid & MED_MASK)-1]+=len; //(unit=grid)
 #endif
-          mom = 0.f;
+
           mediaidold=mediaid | isdet;
           idx1dold=idx1d;
           idx1d=(int(floorf(p.z))*gcfg->dimlen.y+int(floorf(p.y))*gcfg->dimlen.x+int(floorf(p.x)));

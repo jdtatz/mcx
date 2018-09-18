@@ -133,7 +133,6 @@ typedef struct  __align__(16) KernelParams {
   unsigned int maxvoidstep;          /**< max steps that photon can travel in the background before entering non-zero voxels */
   unsigned int issaveseed;           /**< flag if one need to save the detected photon seeds for replay */
   unsigned int issaveexit;           /**< flag if one need to save the detected photon positions and dir vectors */
-  unsigned int ismomentum;           /**< flag if one need to save the detected photon momentum */
   unsigned int issaveref;            /**< flag if one need to save diffuse reflectance data in the 0-voxel layer next to the boundary */
   unsigned int ismomentum;           /**< 1 to save momentum transfer for detected photons, implies issavedet=1*/
   unsigned int isspecular;           /**< 0 do not perform specular reflection at launch, 1 do specular reflection */
