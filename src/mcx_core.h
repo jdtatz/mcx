@@ -11,7 +11,7 @@
 **          by Graphics Processing Units,"</a> Optics Express, 17(22) 20178-20190 (2009).
 **  \li \c (\b Yu2018) Leiming Yu, Fanny Nina-Paravecino, David Kaeli, and Qianqian Fang,
 **          "Scalable and massively parallel Monte Carlo photon transport
-**           simulations for heterogeneous computing platforms," J. Biomed. Optics, (in press) 2018.
+**           simulations for heterogeneous computing platforms," J. Biomed. Optics, 23(1), 010504, 2018.
 **
 **  \section slicense License
 **          GPL v3, see LICENSE.txt for details
@@ -38,6 +38,7 @@ extern "C" {
 #define MCX_DEBUG_RNG       1                   /**< MCX debug flags */
 #define MCX_DEBUG_MOVE      2
 #define MCX_DEBUG_PROGRESS  4
+#define MAX_ACCUM           1000.f
 
 #define ROULETTE_SIZE       10.f                /**< Russian Roulette size */
 
@@ -110,7 +111,7 @@ typedef struct  __align__(16) KernelParams {
   float4 ps;                         /**< initial position vector, for pencil beam */
   float4 c0;                         /**< initial directon vector, for pencil beam */
   float3 maxidx;                     /**< maximum index in x/y/z directions for out-of-bound tests */
-  uint3  dimlen;                     /**< maximum index used to convert x/y/z to 1D array index */
+  uint4  dimlen;                     /**< maximum index used to convert x/y/z to 1D array index */
   uint3  cp0;                        /**< 3D coordinates of one diagonal of the cached region  (obsolete) */
   uint3  cp1;                        /**< 3D coordinates of the other diagonal of the cached region  (obsolete) */
   uint2  cachebox;                   /**< stride for cachebox data acess  (obsolete) */
@@ -124,6 +125,7 @@ typedef struct  __align__(16) KernelParams {
   unsigned int maxdetphoton;         /**< max number of detected photons */
   unsigned int maxmedia;             /**< max number of media labels */
   unsigned int detnum;               /**< max number of detectors */
+  unsigned int maxgate;              /**< max number of time gates */
   unsigned int idx1dorig;            /**< pre-computed 1D index of the photon at launch for pencil/isotropic beams */
   unsigned int mediaidorig;          /**< pre-computed media index of the photon at launch for pencil/isotropic beams */
   unsigned int reseedlimit;          /**< how many photon moves to rejuvenate the RNG (obsolete) */
@@ -133,6 +135,8 @@ typedef struct  __align__(16) KernelParams {
   unsigned int issaveexit;           /**< flag if one need to save the detected photon positions and dir vectors */
   unsigned int ismomentum;           /**< flag if one need to save the detected photon momentum */
   unsigned int issaveref;            /**< flag if one need to save diffuse reflectance data in the 0-voxel layer next to the boundary */
+  unsigned int ismomentum;           /**< 1 to save momentum transfer for detected photons, implies issavedet=1*/
+  unsigned int isspecular;           /**< 0 do not perform specular reflection at launch, 1 do specular reflection */
   unsigned int seedoffset;           /**< offset of the seed, not used */
   int seed;                          /**< RNG seed passted from the host */
   unsigned int outputtype;           /**< Type of output to be accummulated */
@@ -143,6 +147,7 @@ typedef struct  __align__(16) KernelParams {
   unsigned int maxjumpdebug;         /**< max number of positions to be saved to save photon trajectory when -D M is used */
   unsigned int gscatter;             /**< how many scattering events after which mus/g can be approximated by mus' */
   unsigned int is2d;                 /**< is the domain a 2D slice? */
+  int replaydet;                     /**< select which detector to replay, 0 for all, -1 save all separately */
 }MCXParam;
 
 void mcx_run_simulation(Config *cfg,GPUInfo *gpu);

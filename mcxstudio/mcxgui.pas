@@ -18,7 +18,7 @@ uses
   ExtCtrls, Spin, EditBtn, Buttons, ActnList, lcltype, AsyncProcess, Grids,
   CheckLst, LazHelpHTML, inifiles, fpjson, jsonparser, strutils, RegExpr,
   mcxabout, mcxshape, mcxnewsession, mcxsource, mcxoutput,
-  mcxrender {$IFDEF WINDOWS}, sendkeys, registry, ShlObj{$ENDIF};
+  mcxrender {$IFDEF WINDOWS}, sendkeys, registry, ShlObj{$ENDIF}, Types;
 
 type
 
@@ -26,8 +26,38 @@ type
 
   TfmMCX = class(TForm)
     acEditShape: TActionList;
+    mcxdoWebURL: TAction;
     MenuItem33: TMenuItem;
     MenuItem34: TMenuItem;
+    MenuItem35: TMenuItem;
+    MenuItem36: TMenuItem;
+    MenuItem37: TMenuItem;
+    MenuItem38: TMenuItem;
+    MenuItem39: TMenuItem;
+    MenuItem40: TMenuItem;
+    MenuItem41: TMenuItem;
+    MenuItem42: TMenuItem;
+    MenuItem43: TMenuItem;
+    MenuItem44: TMenuItem;
+    MenuItem45: TMenuItem;
+    MenuItem46: TMenuItem;
+    MenuItem47: TMenuItem;
+    MenuItem48: TMenuItem;
+    MenuItem49: TMenuItem;
+    MenuItem50: TMenuItem;
+    MenuItem51: TMenuItem;
+    MenuItem52: TMenuItem;
+    MenuItem53: TMenuItem;
+    MenuItem54: TMenuItem;
+    MenuItem55: TMenuItem;
+    MenuItem56: TMenuItem;
+    MenuItem57: TMenuItem;
+    MenuItem58: TMenuItem;
+    MenuItem59: TMenuItem;
+    MenuItem60: TMenuItem;
+    MenuItem61: TMenuItem;
+    MenuItem62: TMenuItem;
+    PopupMenu3: TPopupMenu;
     shapePreview: TAction;
     edOutputFormat: TComboBox;
     Label11: TLabel;
@@ -41,8 +71,23 @@ type
     MenuItem32: TMenuItem;
     miUseMatlab: TMenuItem;
     MenuItem29: TMenuItem;
+    ToolBar3: TToolBar;
     ToolButton34: TToolButton;
     ToolButton35: TToolButton;
+    ToolButton38: TToolButton;
+    ToolButton39: TToolButton;
+    ToolButton40: TToolButton;
+    ToolButton41: TToolButton;
+    ToolButton42: TToolButton;
+    ToolButton43: TToolButton;
+    ToolButton44: TToolButton;
+    ToolButton45: TToolButton;
+    ToolButton46: TToolButton;
+    ToolButton47: TToolButton;
+    ToolButton48: TToolButton;
+    ToolButton50: TToolButton;
+    ToolButton51: TToolButton;
+    ToolButton52: TToolButton;
     webBrowser: THTMLBrowserHelpViewer;
     HTMLHelpDatabase1: THTMLHelpDatabase;
     mcxdoPlotMC2: TAction;
@@ -238,23 +283,9 @@ type
     ToolButton16: TToolButton;
     ToolButton17: TToolButton;
     ToolButton18: TToolButton;
-    ToolButton19: TToolButton;
     ToolButton2: TToolButton;
-    ToolButton20: TToolButton;
-    ToolButton21: TToolButton;
-    ToolButton22: TToolButton;
-    ToolButton23: TToolButton;
-    ToolButton24: TToolButton;
-    ToolButton25: TToolButton;
-    ToolButton26: TToolButton;
-    ToolButton27: TToolButton;
-    ToolButton28: TToolButton;
-    ToolButton29: TToolButton;
     ToolButton3: TToolButton;
-    ToolButton30: TToolButton;
     ToolButton31: TToolButton;
-    ToolButton32: TToolButton;
-    ToolButton33: TToolButton;
     ToolButton4: TToolButton;
     ToolButton5: TToolButton;
     ToolButton6: TToolButton;
@@ -299,6 +330,7 @@ type
     procedure lvJobsSelectItem(Sender: TObject; Item: TListItem;
       Selected: Boolean);
     procedure mcxdoWebExecute(Sender: TObject);
+    procedure mcxdoWebURLExecute(Sender: TObject);
     procedure mcxSetCurrentExecute(Sender: TObject);
     procedure MenuItem22Click(Sender: TObject);
     procedure miUseMatlabClick(Sender: TObject);
@@ -310,6 +342,8 @@ type
       const Rect: TRect);
     procedure sgConfigDblClick(Sender: TObject);
     procedure sgConfigEditButtonClick(Sender: TObject);
+    procedure sgMediaDrawCell(Sender: TObject; aCol, aRow: Integer;
+      aRect: TRect; aState: TGridDrawState);
     procedure sgMediaEditingDone(Sender: TObject);
     procedure shapeAddBoxExecute(Sender: TObject);
     procedure shapeAddCylinderExecute(Sender: TObject);
@@ -346,7 +380,7 @@ type
     MapList, ConfigData, JSONstr, PassList : TStringList;
     JSONdata : TJSONData;
     RegEngine:TRegExpr;
-    function CreateCmd:AnsiString;
+    function CreateCmd(proc: TProcess=nil):AnsiString;
     function CreateCmdOnly:AnsiString;
     procedure VerifyInput;
     procedure AddLog(str:AnsiString);
@@ -355,6 +389,7 @@ type
     procedure ListToPanel2(node:TListItem);
     procedure PanelToList2(node:TListItem);
     procedure UpdateMCXActions(actlst: TActionList; ontag,offtag: string);
+    procedure UpdateGPUList(Buffer:string);
     function  GetMCXOutput(Sender: TObject): string;
     procedure SaveTasksToIni(fname: string);
     procedure LoadTasksFromIni(fname: string);
@@ -589,7 +624,7 @@ end;
 
 procedure TfmMCX.mcxdoHelpExecute(Sender: TObject);
 begin
-   OpenURL('http://mcx.sourceforge.net/cgi-bin/index.cgi?Doc');
+
 end;
 
 function TfmMCX.ExpandPassword(url: string): string;
@@ -701,7 +736,7 @@ begin
       //edSession.Text:='';
       edConfigFile.FileName:='';
       edThread.Text:='16384';
-      edPhoton.Text:='1e7';
+      edPhoton.Text:='1e6';
       edBlockSize.Text:='64';
       edBubble.Text:='-2';
       edGate.Value:=100;
@@ -740,14 +775,15 @@ begin
       grAtomic.ItemIndex:=0;
       edReplayDet.Value:=0;
       rbUseDesigner.Checked:=true;
-      sgMedia.RowCount:=1;
-      sgMedia.RowCount:=4;
-      sgMedia.Rows[1].CommaText:='0,0,1,1';
-      sgMedia.Rows[2].CommaText:='0.005,1,0.01,1.37';
-      sgDet.RowCount:=1;
-      sgDet.RowCount:=3;
-      sgDet.Rows[1].CommaText:='24,29,0,1';
-      //sgConfig.ColCount:=3;
+      sgMedia.RowCount:=3;
+      sgMedia.Rows[1].CommaText:=',0,0,1,1';
+      sgMedia.Rows[2].CommaText:=',0.005,1,0.01,1.37';
+      sgMedia.RowCount:=20;
+
+
+      sgDet.RowCount:=2;
+      sgDet.Rows[1].CommaText:=',24,29,0,1';
+      sgDet.RowCount:=20;
       sgConfig.Cols[2].CommaText:=ConfigData.CommaText;
       edRemote.Text:='ssh user@server';
       ckDoRemote.Checked:=false;
@@ -819,13 +855,15 @@ begin
      GotoGBox:=gr;
      if(tmAnimation.Tag=1) then begin // collapse
          //gr.Align:=alTop;
-         (Sender as TButton).Caption:=#65088;
-         tmAnimation.Tag:=1;
-         tmAnimation.Enabled:=true;
-     end else begin
-         (Sender as TButton).Caption:=#65087;
+         (Sender as TButton).Caption:=#9662;
+         GotoGBox.Height:=self.Canvas.TextHeight('Ag')+btGBExpand.Height+2;
          tmAnimation.Tag:=0;
-         tmAnimation.Enabled:=true;
+         //tmAnimation.Enabled:=true;
+     end else begin
+         (Sender as TButton).Caption:=#9653;
+         GotoGBox.Height:=edMoreParam.Top+edMoreParam.Height+self.Canvas.TextHeight('Ag')+5;
+         tmAnimation.Tag:=1;
+         //tmAnimation.Enabled:=true;
      end;
 end;
 
@@ -870,13 +908,17 @@ begin
         grGPU.Visible:=true;
         tabVolumeDesigner.Enabled:=true;
         ckSpecular.Visible:=false;
-        ckMomentum.Visible:=false;
+        if(grProgram.ItemIndex=2) then
+            ckMomentum.Visible:=false
+        else
+            ckMomentum.Visible:=true;
         ckSaveRef.Visible:=true;
         edRespin.Hint:='RespinNum';
         lbRespin.Caption:='Split into runs (-r)';
         edBubble.Hint:='BubbleSize';
         lbBubble.Caption:='Cache radius from src (-R)';
         mcxdoQuery.Enabled:=true;
+        edOutputFormat.ItemIndex:=1;
         grArray.Enabled:=true;
         edGate.Enabled:=true;
         edDetectedNum.Enabled:=true;
@@ -887,6 +929,7 @@ begin
         ckSpecular.Visible:=true;
         ckMomentum.Visible:=true;
         ckSaveRef.Visible:=false;
+        edOutputFormat.ItemIndex:=4;
         edRespin.Hint:='BasicOrder';
         lbRespin.Caption:='Element order (-C)';
         edBubble.Hint:='DebugPhoton';
@@ -947,12 +990,17 @@ function TfmMCX.CreateSSHDownloadCmd(suffix: string='.nii'): string;
 var
    rootpath, localfile, remotefile, url, cmd, scpcmd: string;
 begin
-   rootpath:=CreateCmdOnly+'sessions/'+Trim(edSession.Text);
+  {$IFDEF DARWIN}
+   rootpath:=GetUserDir+DirectorySeparator+'MCXStudio'+DirectorySeparator+
+         'Output'+DirectorySeparator+CreateCmdOnly+'sessions'+DirectorySeparator+Trim(edSession.Text);
+  {$ELSE}
+   rootpath:='Output'+DirectorySeparator+CreateCmdOnly+'sessions'+DirectorySeparator+Trim(edSession.Text);
+  {$ENDIF}
    localfile:=CreateWorkFolder(edSession.Text, true)+DirectorySeparator+edSession.Text+suffix;
    remotefile:=rootpath+'/'+edSession.Text+suffix;
    scpcmd:=edRemote.Text;
    scpcmd:=StringReplace(scpcmd,'plink', 'pscp',[rfReplaceAll]);
-   scpcmd:=StringReplace(scpcmd,'-ssh', '-scp',[rfReplaceAll]);
+   scpcmd:=StringReplace(scpcmd,'ssh ', 'scp ',[rfReplaceAll]);
    url:=ExpandPassword(scpcmd);
    if(sscanf(url,'%s',[@cmd])=1) then begin
        Result:='"'+SearchForExe(cmd)+'"'+
@@ -1074,6 +1122,9 @@ end;
 procedure TfmMCX.StartBackend;
 var
    exename, backendname: string;
+   AProcess : TProcess;
+   Buffer   : string;
+   BufStr   : string;
 begin
      if(pBackend.Running) then begin
        pBackend.Terminate(0);
@@ -1099,9 +1150,42 @@ begin
               pBackend.CommandLine:='"'+exename+'"  -nodesktop ';
 
           AddLog('"-- Executing backend --"');
+          {$IFDEF DARWIN}
+          AProcess := TProcess.Create(nil);
+          try
+            AProcess.CommandLine:=  pBackend.CommandLine;
+            AProcess.Options := [poUsePipes,poStderrToOutput];
+            AProcess.Execute;
+            Buffer := '';
+            AddLog(AProcess.CommandLine);
+            repeat
+              if AProcess.Output.NumBytesAvailable > 0 then
+              begin
+                SetLength(BufStr, AProcess.Output.NumBytesAvailable);
+                AProcess.Output.Read(BufStr[1], Length(BufStr));
+                Buffer := Buffer + BufStr;
+                AddMultiLineLog(BufStr,pBackend);
+                Application.ProcessMessages;
+                Sleep(1000);
+              end;
+            until not AProcess.Running;
+          if AProcess.Output.NumBytesAvailable > 0 then
+          begin
+            SetLength(BufStr, AProcess.Output.NumBytesAvailable);
+            AProcess.Output.Read(BufStr[1], Length(BufStr));
+            Buffer := Buffer + BufStr;
+            AddMultiLineLog(BufStr,pBackend);
+          end;
+          finally
+            AProcess.Free;
+          end;
+          AddLog('"-- Terminated Backend --"');
+          exit;
+          {$ENDIF}
           pBackend.Execute;
           fmBackend.Enabled:=true;
      end;
+     Sleep(2000);
 end;
 
 procedure TfmMCX.StopBackend;
@@ -1121,17 +1205,17 @@ end;
 
 procedure TfmMCX.mcxdoPlotVolExecute(Sender: TObject);
 var
-    outputfile, cmd: string;
+    outputfile, cmd, addpath: string;
     ftype: TAction;
     ngates: integer;
-    ismatlabconsole: boolean;
+    ismatlabconsole, isnewmatlab: boolean;
     {$IFDEF WINDOWS}
     hwin: hWnd;
     {$ENDIF}
 begin
      if(CurrentSession=nil) then exit;
      if (grProgram.ItemIndex=1) then begin
-        MessageDlg('Error', 'You must select an MCX or MCXCL simulation to use this feature', mtError, [mbOK],0);
+        MessageDlg('Warning', 'You must select an MCX or MCX-CL simulation to use this feature', mtError, [mbOK],0);
         exit;
     end;
     if not (Sender is TAction) then exit;
@@ -1139,7 +1223,7 @@ begin
 
     outputfile:=CreateWorkFolder(edSession.Text, false)+DirectorySeparator+edSession.Text+ftype.Hint;
     if not (FileExists(outputfile)) then begin
-      MessageDlg('Error', Format('The %s%s output file has not been created',[edSession.Text,ftype.Hint]), mtError, [mbOK],0);
+      MessageDlg('Warning', Format('The %s%s output file has not been created',[edSession.Text,ftype.Hint]), mtError, [mbOK],0);
       exit;
     end;
 
@@ -1149,6 +1233,18 @@ begin
          ngates:=Round((StrToFloat(sgConfig.Cells[2,5])-StrToFloat(sgConfig.Cells[2,4]))/StrToFloat(sgConfig.Cells[2,6]));
          cmd:=Format('datadim=%s; data=mcxplotvol(''%s'',[datadim %d]);'+#10,[sgConfig.Cells[2,2],outputfile,ngates]);
      end;
+     {$IFDEF DARWIN}
+     addpath:=Format('cd ''%s''',[GetUserDir+DirectorySeparator+'MCXStudio'])+#10;
+     {$ELSE}
+     addpath:=Format('cd ''%s''',[ExtractFilePath(Application.ExeName)])+#10;
+     {$ENDIF}
+     addpath:=addpath + 'addpath(''MCXSuite/mcx/utils'');'+#10;
+     addpath:=addpath + 'addpath(''MCXSuite/mmc/matlab'');'+#10;
+     addpath:=addpath + 'addpath(''MATLAB/mcxlab'');'+#10;
+     addpath:=addpath + 'addpath(''MATLAB/mmclab'');'+#10;
+     addpath:=addpath + 'addpath(''MATLAB/iso2mesh'');'+#10;
+
+     isnewmatlab:=false;
      {$IFDEF WINDOWS}
      if(miUseMatlab.Checked) then begin
          hwin:=GetHandleFromWindowTitle('MATLAB Command Window');
@@ -1156,7 +1252,7 @@ begin
              hwin:=GetHandleFromWindowTitle('Command Window');
          if (hwin=0) and not (pBackend.Running) then begin
               StartBackend;
-              Sleep(2000);
+              isnewmatlab:=true;
          end;
          ismatlabconsole:=false;
          repeat
@@ -1167,6 +1263,14 @@ begin
                  ismatlabconsole:=true;
              Sleep(1000);
          until (hwin>0);
+
+         if(isnewmatlab) then begin
+             if(ismatlabconsole) then
+                 SendKeysToTitle('MATLAB Command Window',addpath)
+             else
+                 SendKeysToTitle('Command Window',addpath);
+         end;
+
          if(ismatlabconsole) then
              SendKeysToTitle('MATLAB Command Window',cmd)
          else
@@ -1176,16 +1280,28 @@ begin
      {$ENDIF}
      if not (pBackend.Running) then begin
          StartBackend;
-         Sleep(2000);
+         if(pBackend.Running) then begin
+           pBackend.Input.Write(addpath[1],Length(addpath))
+         end else begin
+           AddLog('-- Please type in MATLAB : -- ');
+           AddLog(addpath);
+         end;
+         Sleep(1000);
      end;
      if(pBackend.Running) then begin
-          pBackend.Input.Write(cmd[1],Length(cmd));
+        pBackend.Input.Write(cmd[1],Length(cmd))
+     end else begin
+        AddLog('-- Please type in MATLAB : -- ');
+        AddLog(cmd);
      end;
 end;
 
 procedure TfmMCX.mcxdoQueryExecute(Sender: TObject);
 var
     cmd, url: string;
+    AProcess : TProcess;
+    Buffer   : string;
+    BufStr   : string;
 begin
     if(ResetMCX(0)) then begin
           AddLog('"-- Run Command --"');
@@ -1201,9 +1317,44 @@ begin
               end else
                   exit;
           end else begin
-              pMCX.CommandLine:='"'+SearchForExe(CreateCmdOnly)+'" -L';
+              cmd:=SearchForExe(CreateCmdOnly);
+              if(Length(cmd)=0) then begin
+                  MessageDlg('Warning', 'Program is not found', mtError, [mbOK],0);
+                  exit;
+              end;
+              pMCX.CommandLine:='"'+cmd+'" -L';
               AddLog(pMCX.CommandLine);
           end;
+          {$IFDEF DARWIN}
+          AProcess := TProcess.Create(nil);
+          try
+            AProcess.CommandLine:=  pMCX.CommandLine;
+            AProcess.Options := [poUsePipes,poStderrToOutput];
+            AProcess.Execute;
+            Buffer := '';
+            repeat
+              if AProcess.Output.NumBytesAvailable > 0 then
+              begin
+                SetLength(BufStr, AProcess.Output.NumBytesAvailable);
+                AProcess.Output.Read(BufStr[1], Length(BufStr));
+                Buffer := Buffer + BufStr;
+              end;
+            until not AProcess.Running;
+          if AProcess.Output.NumBytesAvailable > 0 then
+          begin
+            SetLength(BufStr, AProcess.Output.NumBytesAvailable);
+            AProcess.Output.Read(BufStr[1], Length(BufStr));
+            Buffer := Buffer + BufStr;
+            Application.ProcessMessages;
+          end;
+          finally
+            AProcess.Free;
+          end;
+          AddLog('"-- Printing GPU Information --"');
+          AddMultiLineLog(Buffer,pMCX);
+          UpdateGPUList(Buffer);
+          exit;
+          {$ENDIF}
           sbInfo.Panels[0].Text := 'Status: querying GPU';
           pMCX.Tag:=-1;
           AddLog('"-- Printing GPU Information --"');
@@ -1221,22 +1372,28 @@ begin
         Sleep(1000);
     end;
     if(pMCX.Running) then begin
-        MessageDlg('Error', 'Program is still running. Please wait or kill the program manually from your Task Manager', mtError, [mbOK],0);
+        MessageDlg('Warning', 'Program is still running. Please wait or kill the program manually from your Task Manager', mtError, [mbOK],0);
         exit;
     end;
     Result:=true;
 end;
 
 procedure TfmMCX.mcxdoRunExecute(Sender: TObject);
+var
+    AProcess : TProcess;
+    Buffer   : string;
+    BufStr   : string;
 begin
+    if(GetTickCount64-mcxdoRun.Tag<100) then
+       exit;
     if(ResetMCX(0)) then begin
-        pMCX.CommandLine:=CreateCmd;
+        CreateCmd(pMCX);
+        pMCX.CurrentDirectory:=ExtractFilePath(SearchForExe(CreateCmdOnly));
         AddLog('"-- Executing Simulation --"');
         if(ckbDebug.Checked[2]) then begin
             sbInfo.Panels[1].Text:='0%';
             sbInfo.Invalidate;
         end;
-        pMCX.Execute;
         mcxdoStop.Enabled:=true;
         mcxdoRun.Enabled:=false;
         sbInfo.Panels[0].Text := 'Status: running simulation';
@@ -1245,6 +1402,41 @@ begin
         sbInfo.Color := clRed;
         UpdateMCXActions(acMCX,'Run','');
         mcxdoRun.Tag:=GetTickCount64;
+        {$IFDEF DARWIN}
+        AProcess := TProcess.Create(nil);
+        try
+          AProcess.Executable:=  pMCX.Executable;
+          AProcess.Parameters:=  pMCX.Parameters;
+          AProcess.Options := [poUsePipes,poStderrToOutput];
+          AProcess.Execute;
+          Buffer := '';
+          repeat
+            if AProcess.Output.NumBytesAvailable > 0 then
+            begin
+              SetLength(BufStr, AProcess.Output.NumBytesAvailable);
+              AProcess.Output.Read(BufStr[1], Length(BufStr));
+              Buffer := Buffer + BufStr;
+              AddMultiLineLog(BufStr,pMCX);
+              Application.ProcessMessages;
+            end;
+          until not AProcess.Running;
+        if AProcess.Output.NumBytesAvailable > 0 then
+        begin
+          SetLength(BufStr, AProcess.Output.NumBytesAvailable);
+          AProcess.Output.Read(BufStr[1], Length(BufStr));
+          Buffer := Buffer + BufStr;
+          AddMultiLineLog(BufStr,pMCX);
+          Application.ProcessMessages;
+        end;
+        finally
+          AProcess.Free;
+        end;
+        AddLog('"-- Command Completed --"');
+        pMCXTerminate(nil);
+        exit;
+        {$ELSE}
+        pMCX.Execute;
+        {$ENDIF}
         Application.ProcessMessages;
     end;
 end;
@@ -1363,6 +1555,8 @@ begin
 
     fmBackend.Enabled:=false;
 
+    fmDomain:=TfmDomain.Create(Self);
+
     DockMaster.MakeDockable(fmOutput,true,true);
 
     CurrentSession:=nil;
@@ -1402,9 +1596,9 @@ begin
     ConfigData.Free;
     RegEngine.Free;
     fmOutput.Free;
-    fmDomain.Free;
     fmBackend.Free;
     PassList.Free;
+    fmDomain.Free;
 end;
 
 procedure TfmMCX.lvJobsSelectItem(Sender: TObject; Item: TListItem;
@@ -1444,14 +1638,21 @@ begin
            fname:=fname+'.exe';
    {$ENDIF}
    Result :=
-    SearchFileInPath(fname, '', ExtractFilePath(Application.ExeName)+PathSeparator+
+    SearchFileInPath(fname, '',
+        ExtractFilePath(Application.ExeName)+'MCXSuite'+
+        DirectorySeparator+MCProgram[grProgram.ItemIndex]+DirectorySeparator+
+        'bin'+PathSeparator+ExtractFilePath(Application.ExeName)+PathSeparator+
+        GetUserDir+DirectorySeparator+'MCXStudio'+PathSeparator+
         ExtractFilePath(Application.ExeName)+MCProgram[grProgram.ItemIndex]+
         DirectorySeparator+'bin'+PathSeparator+GetEnvironmentVariable('PATH'),
                      PathSeparator, [sffDontSearchInBasePath]);
+
    if(DirectoryExists(Result)) then
      Result :=SearchFileInPath(fname, '',
-         ExtractFilePath(Application.ExeName)+MCProgram[grProgram.ItemIndex]+
-         DirectorySeparator+'bin'+PathSeparator+GetEnvironmentVariable('PATH'),
+         ExtractFilePath(Application.ExeName)+'MCXSuite'+
+        DirectorySeparator+MCProgram[grProgram.ItemIndex]+
+         DirectorySeparator+'bin'+PathSeparator+PathSeparator+
+         GetUserDir+DirectorySeparator+'MCXStudio'+PathSeparator+ GetEnvironmentVariable('PATH'),
                       PathSeparator, [sffDontSearchInBasePath]);
 end;
 
@@ -1502,6 +1703,13 @@ begin
   OpenURL('http://mcx.space');
 end;
 
+procedure TfmMCX.mcxdoWebURLExecute(Sender: TObject);
+begin
+  if(Sender is TMenuItem) then begin
+        OpenURL((Sender as TMenuItem).Hint);
+  end;
+end;
+
 procedure TfmMCX.mcxSetCurrentExecute(Sender: TObject);
 begin
      if not (lvJobs.Selected = nil) then begin
@@ -1545,8 +1753,9 @@ end;
 procedure TfmMCX.pMCXTerminate(Sender: TObject);
 begin
      if(not mcxdoStop.Enabled) then exit;
-     AddMultiLineLog(GetMCXOutput(Sender), Sender);
-     if(pMCX.Tag=-10) then begin
+     if(Sender <> nil) then
+         AddMultiLineLog(GetMCXOutput(Sender), Sender);
+     if(Sender <> nil) and (pMCX.Tag=-10) then begin
          sbInfo.Panels[2].Text:=Format('Last simulation used %.3f seconds', [(GetTickCount64-mcxdoRun.Tag)/1000.]);
          //if ckDoRemote.Checked and (not ckSharedFS.Checked) then
          //    mcxdoDownloadMC2Execute(Sender);
@@ -1618,6 +1827,7 @@ procedure TfmMCX.sgConfigEditButtonClick(Sender: TObject);
 var
    grid: TStringGrid;
    fmSrc: TfmSource;
+   meshid: string;
 begin
    if not(Sender is TStringGrid) then exit;
    grid:= Sender as TStringGrid;
@@ -1625,12 +1835,20 @@ begin
       if(OpenDir.Execute) then
          grid.Cells[grid.Col,grid.Row]:=OpenDir.FileName;
    end else if(grid.Col=2) and (grid.Row=1) then begin
-      if(grid.Cells[grid.Col,grid.Row]='See Volume Designer...') then
-         pcSimuEditor.ActivePage:=tabVolumeDesigner
-      else
-          if(OpenVolume.Execute) then
-             grid.Cells[grid.Col,grid.Row]:=OpenVolume.FileName;
-   end else if(grid.Col=2) and (grid.Row>=10) and (grid.Row<=12) and (grProgram.ItemIndex<2) then begin
+      //if(grid.Cells[grid.Col,grid.Row]='See Volume Designer...') then
+      //   pcSimuEditor.ActivePage:=tabVolumeDesigner
+      //else
+          if(OpenVolume.Execute) then begin
+             if(grProgram.ItemIndex<>1) then begin
+                 grid.Cells[grid.Col,grid.Row]:=OpenVolume.FileName
+             end else begin
+                 grid.Cells[2,14]:=ExtractFilePath(OpenVolume.FileName);
+                 meshid:=ExtractFileName(OpenVolume.FileName);
+                 meshid:=ReplaceRegExpr('^[a-z]{4}_',meshid,'',false);
+                 grid.Cells[grid.Col,grid.Row]:=ReplaceRegExpr('.dat$',meshid,'',false);
+             end;
+          end;
+   end else if(grid.Col=2) and (grid.Row>=10) and (grid.Row<=12) then begin
       fmSrc:=TfmSource.Create(Application);
       if(Length(grid.Cells[2,10])>0) then begin
              fmSrc.edSource.Text:=grid.Cells[2,10];
@@ -1644,6 +1862,21 @@ begin
       fmSrc.Free;
    end;
    edRespinChange(Sender);
+end;
+
+procedure TfmMCX.sgMediaDrawCell(Sender: TObject; aCol, aRow: Integer;
+  aRect: TRect; aState: TGridDrawState);
+var
+  LStrCell: string;
+  LRect: TRect;
+begin
+  if(ACol>0) or (ARow=0) then exit;
+  LStrCell := IntToStr(ARow-1);
+  sgMedia.Canvas.FillRect(aRect); // clear the cell
+  LRect := aRect;
+  LRect.Top := LRect.Top + 3; // adjust top to center vertical
+  // draw text
+  DrawText(sgMedia.Canvas.Handle, PChar(LStrCell), Length(LStrCell), LRect, DT_CENTER);
 end;
 
 procedure TfmMCX.GotoColRow(grid: TStringGrid; Col, Row: Integer);
@@ -1870,18 +2103,20 @@ begin
        end;
      end;
 
-     if(maxtag > sgMedia.RowCount-3) then begin
-          sgMedia.RowCount:=maxtag+3;
-          for i:=sgMedia.RowCount-1 downto 0 do begin
-              if(Length(sgMedia.Cells[0,i])>0) then begin
-                  lastgood:=i;
-                  break;
-              end;
-          end;
-          for i:=lastgood+1 to sgMedia.RowCount-2 do begin
+     lastgood:=0;
+     for i:=sgMedia.RowCount-1 downto 1 do begin
+         if(Length(sgMedia.Cells[1,i])>0) then begin
+             lastgood:=i;
+             break;
+         end;
+     end;
+
+     if(maxtag > lastgood-2) then begin
+          sgMedia.RowCount:=Max(maxtag+3,sgMedia.RowCount);
+          for i:=lastgood+1 to maxtag+1 do begin
               AddLog('"WARNING:" copying media type #'+IntToStr(lastgood-1)+' to new media type #'+IntToStr(i-1));
               AddLog('Please edit the media setting to customize.');
-              for j:=0 to sgMedia.ColCount-1 do begin
+              for j:=1 to sgMedia.ColCount-1 do begin
                   sgMedia.Cells[j,i]:=sgMedia.Cells[j,lastgood];
               end;
           end;
@@ -1905,13 +2140,14 @@ begin
 end;
 
 procedure TfmMCX.shapePreviewExecute(Sender: TObject);
+var
+    shapejson: TJSONData;
 begin
-    if(not Assigned(fmDomain)) then
-        fmDomain:=TfmDomain.Create(Self);
-    fmDomain.mmShapeJSON.Lines.Text:=GetJSON(SaveJSONConfig('')).FormatJSON;
+    shapejson:=GetJSON(SaveJSONConfig(''));
+    fmDomain.mmShapeJSON.Lines.Text:=shapejson.FormatJSON;
     fmDomain.Show;
-end;
-
+    freeandnil(shapejson);
+end; 
 
 
 procedure TfmMCX.shapeResetExecute(Sender: TObject);
@@ -1971,7 +2207,9 @@ end;
 
 procedure TfmMCX.tbtRunClick(Sender: TObject);
 begin
+  {$IFNDEF DARWIN}
   mcxdoRunExecute(Sender);
+  {$ENDIF}
 end;
 
 procedure TfmMCX.Timer1Timer(Sender: TObject);
@@ -2070,21 +2308,80 @@ begin
     end;
 end;
 
-function TfmMCX.GetMCXOutput(Sender: TObject): string;
+procedure TfmMCX.UpdateGPUList(Buffer:string);
 var
-    Buffer, revbuf, percent: string;
-    BytesAvailable: DWord;
-    BytesRead:LongInt;
     list: TStringList;
     i, idx, len, total, namepos,gpucount: integer;
     gpuname, ss: string;
-    proc: TAsyncProcess;
+
     {$IFDEF WINDOWS}
     Reg: TRegistry;
     RegKey: DWORD;
     Key: string;
     needfix: boolean;
     {$ENDIF}
+begin
+  list:=TStringList.Create;
+  list.StrictDelimiter := true;
+  list.Delimiter:=AnsiChar(#10);
+  list.DelimitedText:=Buffer;
+  gpucount:=0;
+  for i:=0 to list.Count-1 do begin
+    ss:= list.Strings[i];
+    if(sscanf(ss+' ','Device %d of %d:%s', [@idx, @total, @gpuname])=3) then
+    begin
+           if(idx=1) then
+               edGPUID.Items.Clear;
+           namepos := Pos(gpuname, ss);
+           edGPUID.Items.Add('#'+IntToStr(idx)+':'+Trim(copy(ss, namepos, Length(ss)-namepos+1)));
+           gpucount:=gpucount+1;
+    end;
+  end;
+  if(edGPUID.Items.Count>0) then
+      edGPUID.Checked[0]:=true;
+  {$IFDEF WINDOWS}
+  if (not (ckDoRemote.Checked)) and (gpucount>=1) then begin
+      Reg := TRegistry.Create;
+      needfix:=true;
+      try
+        Reg.RootKey := HKEY_LOCAL_MACHINE;
+        Key := '\SYSTEM\CurrentControlSet\Control\GraphicsDrivers';
+        if Reg.OpenKeyReadOnly(Key) then
+        begin
+          if Reg.ValueExists('TdrDelay') then
+          begin
+            RegKey := Reg.ReadInteger('TdrDelay');
+            needfix:=false;
+          end;
+        end;
+        Reg.CloseKey;
+        if(needfix) then begin
+          if(MessageDlg('Question', 'If you run MCX on the GPU that is connected to your monitor, you may encouter an "Unspecified launch failure " error. Do you want to modify the "TdrDelay" registry key to allow MCX to run for more than 5 seconds?', mtWarning,
+                  [mbYes, mbNo, mbCancel],0) = mrYes) then begin
+                if Reg.OpenKey(Key, true) then  begin
+                    Reg.WriteInteger('TdrDelay', 999999);
+                    MessageDlg('Confirmation', 'Registry modification was successfully applied.', mtInformation, [mbOK],0);
+                end else
+                    MessageDlg('Permission Error', 'You don''t have permission to modify registry. Please contact your administrator to apply the fix.', mtError, [mbOK],0);
+            end;
+        end;
+      finally
+        Reg.Free
+      end;
+  end;
+  {$ENDIF}
+  list.Free;
+end;
+
+function TfmMCX.GetMCXOutput(Sender: TObject): string;
+var
+    Buffer, revbuf, percent: string;
+    BytesAvailable: DWord;
+    BytesRead:LongInt;
+
+    i, idx, len, total, namepos,gpucount: integer;
+    gpuname, ss: string;
+    proc: TAsyncProcess;
 begin
    if (Sender is TAsyncProcess) then
     proc:= Sender as TAsyncProcess;
@@ -2115,56 +2412,7 @@ begin
       end;
     end;
     if(proc=pMCX) and (pMCX.Tag=-1) then begin
-        list:=TStringList.Create;
-        list.StrictDelimiter := true;
-        list.Delimiter:=AnsiChar(#10);
-        list.DelimitedText:=Result;
-        gpucount:=0;
-        for i:=0 to list.Count-1 do begin
-          ss:= list.Strings[i];
-          if(sscanf(ss+' ','Device %d of %d:%s', [@idx, @total, @gpuname])=3) then
-          begin
-                 if(idx=1) then
-                     edGPUID.Items.Clear;
-                 namepos := Pos(gpuname, ss);
-                 edGPUID.Items.Add('#'+IntToStr(idx)+':'+Trim(copy(ss, namepos, Length(ss)-namepos+1)));
-                 gpucount:=gpucount+1;
-          end;
-        end;
-        if(edGPUID.Items.Count>0) then
-            edGPUID.Checked[0]:=true;
-        {$IFDEF WINDOWS}
-        if (not (ckDoRemote.Checked)) and (gpucount>=1) then begin
-            Reg := TRegistry.Create;
-            needfix:=true;
-            try
-              Reg.RootKey := HKEY_LOCAL_MACHINE;
-              Key := '\SYSTEM\CurrentControlSet\Control\GraphicsDrivers';
-              if Reg.OpenKeyReadOnly(Key) then
-              begin
-                if Reg.ValueExists('TdrDelay') then
-                begin
-                  RegKey := Reg.ReadInteger('TdrDelay');
-                  needfix:=false;
-                end;
-              end;
-              Reg.CloseKey;
-              if(needfix) then begin
-                if(MessageDlg('Question', 'If you run MCX on the GPU that is connected to your monitor, you may encouter a "Kernel launch timed out" error. Do you want to modify the "TdrDelay" registry key to allow MCX to run for more than 5 seconds?', mtWarning,
-                        [mbYes, mbNo, mbCancel],0) = mrYes) then begin
-                      if Reg.OpenKey(Key, true) then  begin
-                          Reg.WriteInteger('TdrDelay', 999999);
-                          MessageDlg('Confirmation', 'Registry modification was successfully applied.', mtInformation, [mbOK],0);
-                      end else
-                          MessageDlg('Permission Error', 'You don''t have permission to modify registry. Please contact your administrator to apply the fix.', mtError, [mbOK],0);
-                  end;
-              end;
-            finally
-              Reg.Free
-            end;
-        end;
-        {$ENDIF}
-        list.Free;
+        UpdateGPUList(Buffer);
     end;
     Sleep(100);
 end;
@@ -2248,11 +2496,13 @@ begin
        raise Exception.Create('Thread block number (-T) can not be negative');
 
     exepath:=SearchForExe(CreateCmdOnly);
-    if(exepath='') then
+    if(exepath='') and (not ckDoRemote.Checked) then
        raise Exception.Create(Format('Can not find %s executable in the search path',[CreateCmdOnly]));
 
-    if not (SaveJSONConfig('')='') then
+    if not (SaveJSONConfig('')='') then  begin
        UpdateMCXActions(acMCX,'Work','');
+       AddLog('"-- Input is valid, please click [Run] to execute --"');
+    end;
   except
     On E : Exception do
       MessageDlg('Input Error', E.Message, mtError, [mbOK],0);
@@ -2321,12 +2571,12 @@ begin
       jmedia:=TJSONArray.Create;
       for i := sgMedia.FixedRows to sgMedia.RowCount - 1 do
       begin
-              if (Length(sgMedia.Cells[0,i])=0) then break;
+              if (Length(sgMedia.Cells[1,i])=0) then break;
               jmedium:=TJSONObject.Create;
-              jmedium.Add('mua',StrToFloat(sgMedia.Cells[0,i]));
-              jmedium.Add('mus',StrToFloat(sgMedia.Cells[1,i]));
-              jmedium.Add('g',StrToFloat(sgMedia.Cells[2,i]));
-              jmedium.Add('n',StrToFloat(sgMedia.Cells[3,i]));
+              jmedium.Add('mua',StrToFloat(sgMedia.Cells[1,i]));
+              jmedium.Add('mus',StrToFloat(sgMedia.Cells[2,i]));
+              jmedium.Add('g',StrToFloat(sgMedia.Cells[3,i]));
+              jmedium.Add('n',StrToFloat(sgMedia.Cells[4,i]));
               jmedia.Add(jmedium);
       end;
       if(jmedia.Count>0) then
@@ -2337,13 +2587,13 @@ begin
       jdets:=TJSONArray.Create;
       for i := sgDet.FixedRows to sgDet.RowCount - 1 do
       begin
-              if (Length(sgDet.Cells[0,i])=0) then break;
+              if (Length(sgDet.Cells[1,i])=0) then break;
               jdet:=TJSONObject.Create;
               jdet.Arrays['Pos']:=TJSONArray.Create;
-              jdet.Arrays['Pos'].Add(StrToFloat(sgDet.Cells[0,i]));
               jdet.Arrays['Pos'].Add(StrToFloat(sgDet.Cells[1,i]));
               jdet.Arrays['Pos'].Add(StrToFloat(sgDet.Cells[2,i]));
-              jdet.Add('R',StrToFloat(sgDet.Cells[3,i]));
+              jdet.Arrays['Pos'].Add(StrToFloat(sgDet.Cells[3,i]));
+              jdet.Add('R',StrToFloat(sgDet.Cells[4,i]));
               jdets.Add(jdet);
       end;
       if(json.Find('Optode') = nil) then
@@ -2432,8 +2682,14 @@ function TfmMCX.CreateWorkFolder(session: string; iscreate: boolean=true) : stri
 var
     path: string;
 begin
+{$IFDEF DARWIN}
+    path:=GetUserDir
+       +DirectorySeparator+'MCXStudio'+DirectorySeparator+'Output'
+       +DirectorySeparator+CreateCmdOnly+'sessions'+DirectorySeparator+session;
+{$ELSE}
     path:=ExtractFileDir(Application.ExeName)
-       +DirectorySeparator+'..'+DirectorySeparator+CreateCmdOnly+'sessions'+DirectorySeparator+session;
+       +DirectorySeparator+'Output'+DirectorySeparator+CreateCmdOnly+'sessions'+DirectorySeparator+session;
+{$ENDIF}
     path:=ExpandFileName(path);
     Result:=path;
     AddLog(Result);
@@ -2459,43 +2715,69 @@ begin
      end;
 end;
 
-function TfmMCX.CreateCmd:AnsiString;
+function TfmMCX.CreateCmd(proc: TProcess=nil):AnsiString;
 var
     nthread, nblock,hitmax,seed, i: integer;
     bubbleradius,unitinmm,nphoton: extended;
     cmd, jsonfile, gpuid, debugflag, rootpath, inputjson, fname: string;
-    shellscript: TStringList;
+    shellscript, param: TStringList;
 begin
     rootpath:='';
     cmd:=CreateCmdOnly;
-    if(Length(edSession.Text)>0) then
-       cmd:=cmd+' --session "'+Trim(edSession.Text)+'" ';
+    param:=TStringList.Create;
+    param.StrictDelimiter:=true;
+    param.Delimiter:=' ';
+    if(proc<> nil) then begin
+        proc.CommandLine:='';
+        proc.Executable:=cmd;
+        proc.Parameters.Clear;
+    end;
+    if(Length(edSession.Text)>0) then begin
+        param.Add('--session');
+        param.Add(Trim(edSession.Text));
+    end;
     if rbUseFile.Checked and (Length(edConfigFile.FileName)>0) then
     begin
-       cmd:=cmd+' --input "'+Trim(edConfigFile.FileName)+'"';
-       rootpath:=ExcludeTrailingPathDelimiter(ExtractFilePath(edConfigFile.FileName));
+        param.Add('--input');
+        param.Add(Trim(edConfigFile.FileName));
+        rootpath:=ExcludeTrailingPathDelimiter(ExtractFilePath(edConfigFile.FileName));
     end else begin
         jsonfile:=CreateWorkFolder(edSession.Text)+DirectorySeparator+Trim(edSession.Text)+'.json';
-        inputjson:=SaveJSONConfig(jsonfile);
+        inputjson:=StringReplace(SaveJSONConfig(jsonfile),'"','"',[rfReplaceAll]);
         {$IFDEF WINDOWS}
         inputjson:=StringReplace(inputjson,'"', '\"',[rfReplaceAll]);
         {$ENDIF}
         if(inputjson='') then
             exit;
-        if(ckDoRemote.Checked) and (not (ckSharedFS.Checked)) then
-            cmd:=cmd+' --input '''+Trim(inputjson)+''''
-        else begin
-            cmd:=cmd+' --input "'+Trim(jsonfile)+'"';
+        if(ckDoRemote.Checked) and (not (ckSharedFS.Checked)) then begin
+            param.Add('--input');
+            param.Add(''''+Trim(inputjson)+'''');
+        end else begin
+            param.Add('--input');
+            param.Add(Trim(jsonfile));
             rootpath:=ExcludeTrailingPathDelimiter(ExtractFilePath(jsonfile));
         end;
     end;
     if(Length(sgConfig.Cells[2,14])>0) then
         rootpath:=sgConfig.Cells[2,14];
     if(ckDoRemote.Checked) then begin
+      {$IFDEF DARWIN}
+        if(rootpath='') then begin
+            if(ckDoRemote.Checked) then
+                rootpath:='Output'+DirectorySeparator+CreateCmdOnly+'sessions'+DirectorySeparator+Trim(edSession.Text)
+            else
+                rootpath:=GetUserDir+DirectorySeparator+'MCXStudio'+DirectorySeparator+
+                      'Output'+DirectorySeparator+CreateCmdOnly+'sessions'+DirectorySeparator+Trim(edSession.Text);
+        end;
+      {$ELSE}
         if(rootpath='') then
-            rootpath:=CreateCmdOnly+'sessions/'+Trim(edSession.Text);
+            rootpath:='Output'+DirectorySeparator+CreateCmdOnly+'sessions'+DirectorySeparator+Trim(edSession.Text);
+      {$ENDIF}
     end;
-    cmd:=cmd+' --root "'+rootpath+'" --outputformat '+edOutputFormat.Text;
+    param.Add('--root');
+    param.Add(rootpath);
+    param.Add('--outputformat');
+    param.Add(edOutputFormat.Text);
 
     try
         nthread:=StrToInt(edThread.Text);
@@ -2514,72 +2796,133 @@ begin
     end;
 
     if(grProgram.ItemIndex <>1) then begin
-        cmd:=cmd+' --gpu '+gpuid;
+        param.Add('--gpu');
+        param.Add(gpuid);
         if(ckAutopilot.Checked) then begin
-          cmd:=cmd+ ' --autopilot 1';
+          param.Add('--autopilot');
+          param.Add('1');
         end else begin
-          cmd:=cmd+Format(' --thread %d --blocksize %d', [nthread,nblock]);
+          param.Add('--thread');
+          param.Add(IntToStr(nthread));
+          param.Add('--blocksize');
+          param.Add(IntToStr(nblock));
         end;
     end;
-    cmd:=cmd+Format(' --photon %.0f',[nphoton]);
-    cmd:=cmd+Format(' --normalize %d --save2pt %d --reflect %d --savedet %d --unitinmm %f --saveseed %d',
-      [Integer(ckNormalize.Checked),Integer(ckSaveData.Checked),Integer(ckReflect.Checked),
-      Integer(ckSaveDetector.Checked),unitinmm,Integer(ckSaveSeed.Checked)]);
-    if(Length(edSeed.Text)>0) then
-      cmd:=cmd+Format(' --seed "%s"',[edSeed.Text]);
-    if(edReplayDet.Enabled) then
-      cmd:=cmd+Format(' --replaydet %d',[edReplayDet.Value]);
-
-    if(grProgram.ItemIndex=1) then begin
-      if(grAtomic.ItemIndex=1) then begin
-         cmd:=cmd+' --atomic 0';
-      end;
-      cmd:=cmd+Format(' --specular %d --basisorder %d --momentum %d',[Integer(ckSpecular.Checked),edRespin.Value,Integer(ckMomentum.Checked)]);
-    end else begin
-        if(grAtomic.ItemIndex=0) then begin
-           if(grProgram.ItemIndex=0) then
-               cmd:=cmd+' --skipradius -2'
-           else
-               cmd:=cmd+' --compileropt "-D USE_ATOMIC"';
-        end;
-        cmd:=cmd+Format(' --array %d --dumpmask %d --repeat %d  --maxdetphoton %d',[grArray.ItemIndex,Integer(ckSaveMask.Checked), edRespin.Value, hitmax]);
-        if(grProgram.ItemIndex=2) then begin
-          fname:=SearchForExe('mcx_core.cl');
-          if(Length(fname)>0) then
-              cmd:=cmd+ Format(' --kernel "%s"', [fname])
-          else begin
-              MessageDlg('Input Error', 'can not find "mcx_core.cl" please copy this file from mcxcl''s bin folder to the same folder storing mcxsudio', mtError, [mbOK],0);
-              exit;
-          end;
-        end;
+    param.Add('--photon');
+    param.Add(Format('%.0f',[nphoton]));
+    param.Add('--normalize');
+    param.Add(Format('%d',[Integer(ckNormalize.Checked)]));
+    param.Add('--save2pt');
+    param.Add(Format('%d',[Integer(ckSaveData.Checked)]));
+    param.Add('--reflect');
+    param.Add(Format('%d',[Integer(ckReflect.Checked)]));
+    param.Add('--savedet');
+    param.Add(Format('%d',[Integer(ckSaveDetector.Checked)]));
+    param.Add('--unitinmm');
+    param.Add(Format('%f',[unitinmm]));
+    if(Length(edSeed.Text)>0) then begin
+      param.Add('--seed');
+      param.Add(Format('%s',[edSeed.Text]));
+    end;
+    if(edReplayDet.Enabled) then begin
+      param.Add('--replaydet');
+      param.Add(Format('%d',[edReplayDet.Value]));
+    end;
+    if(grProgram.ItemIndex<2) then begin
+      param.Add('--saveseed');
+      param.Add(Format('%d',[Integer(ckSaveSeed.Checked)]));
+      param.Add('--momentum');
+      param.Add(Format('%d',[Integer(ckMomentum.Checked)]));
     end;
 
-    if(ckSkipVoid.Checked) then
-      cmd:=cmd+' --skipvoid 1';
+    if(grProgram.ItemIndex>=1) then begin
+      param.Add('--atomic');
+      param.Add(Format('%d',[grAtomic.ItemIndex]));
+    end;
+
+    if (grProgram.ItemIndex=1) then begin
+         param.Add('--specular');
+         param.Add(Format('%d',[Integer(ckSpecular.Checked)]));
+         param.Add('--basisorder');
+         param.Add(Format('%d',[edRespin.Value]));
+    end;
+
+    if(grAtomic.ItemIndex=0) then begin
+           if(grProgram.ItemIndex=0) then begin
+               param.Add('--skipradius');
+               param.Add('-2');
+           end;
+    end;
+
+    if(grProgram.ItemIndex<>1) then begin
+        param.Add('--array');
+        param.Add(Format('%d',[grArray.ItemIndex]));
+        param.Add('--dumpmask');
+        param.Add(Format('%d',[Integer(ckSaveMask.Checked)]));
+        param.Add('--repeat');
+        param.Add(Format('%d',[edRespin.Value]));
+        param.Add('--maxdetphoton');
+        param.Add(Format('%d',[hitmax]));
+    end;
+
+    if(ckSkipVoid.Checked) then begin
+        param.Add('--skipvoid');
+        param.Add('1');
+    end;
     debugflag:='';
     for i:=0 to ckbDebug.Items.Count-1 do begin
          if(ckbDebug.Checked[i]) then
              debugflag:=debugflag+DebugFlags[i+1];
     end;
-    if(Length(debugflag)>0) then
-        cmd:=cmd+' --debug '+debugflag;
-    if(Length(edMoreParam.Text)>0) then
-        cmd:=cmd+' '+edMoreParam.Text;
+    if(Length(debugflag)>0) then begin
+        param.Add('--debug');
+        param.Add(debugflag);
+    end;
+    if(Length(edMoreParam.Text)>0) then begin
+        shellscript:=TStringList.Create;
+        shellscript.StrictDelimiter:=true;
+        shellscript.Delimiter:=' ';
+        shellscript.DelimitedText:=edMoreParam.Text;
+        param.AddStrings(shellscript);
+        shellscript.Free;
+    end;
 
     AddLog('"-- Command: --"');
-    AddLog(cmd);
-    if(ckDoRemote.Checked) then
-        cmd:=ExpandPassword(edRemote.Text)+' '+ cmd;
+    AddLog(cmd+' '+param.DelimitedText);
+
+    if(ckDoRemote.Checked) then begin
+        shellscript:=TStringList.Create;
+        shellscript.StrictDelimiter:=true;
+        shellscript.Delimiter:=' ';
+        shellscript.DelimitedText:=ExpandPassword(Trim(edRemote.Text));
+        shellscript.Add(cmd);
+        if(shellscript.Count>1) then begin
+          for i:=1 to shellscript.Count-1 do begin
+            param.Insert(i-1,shellscript.Strings[i]);
+          end;
+          cmd:=shellscript.Strings[0];
+        end;
+        AddLog('Remote Command: '+edRemote.Text);
+    end;
 
     if(Length(jsonfile)>0) then begin
          shellscript:=TStringList.Create;
          shellscript.Add('#!/bin/sh');
-         shellscript.Add(cmd);
+         shellscript.Add(cmd+' '+param.DelimitedText);
          shellscript.SaveToFile(ChangeFileExt(jsonfile,'.sh'));
+         shellscript.Clear;
+         shellscript.Add('@echo off');
+         shellscript.Add(cmd+' '+param.DelimitedText);
          shellscript.SaveToFile(ChangeFileExt(jsonfile,'.bat'));
          shellscript.Free;
     end;
-    Result:=cmd;
+    if(proc<> nil) then begin
+        proc.Executable:=SearchForExe(cmd);
+        proc.Parameters.CommaText:=param.CommaText;
+    end;
+
+    Result:=cmd+' '+param.DelimitedText;
+    param.Free;
 end;
 
 function TfmMCX.GridToStr(grid:TStringGrid):AnsiString;
@@ -2613,18 +2956,23 @@ end;
 procedure TfmMCX.StrToGrid(str: string; grid:TStringGrid);
 var
     i: integer;
-    json: TStrings;
+    json,rowtext: TStrings;
 begin
   json := TStringList.Create;
   json.StrictDelimiter:=true;
   json.Delimiter:='|';
   json.DelimitedText:=str;
 
+  rowtext := TStringList.Create;
+
   try
       try
           if(grid.RowCount < json.Count+1) then
               grid.RowCount:= json.Count+1;
           for i := 0 to json.Count-1 do begin
+              rowtext.CommaText:=json.Strings[i];
+              if((grid.Name='sgMedia') or (grid.Name='sgDet') )and (rowtext.Count=4) then
+                  json.Strings[i]:=','+json.Strings[i];
               grid.Rows[i+grid.FixedRows].CommaText:=json.Strings[i];
           end;
       except
@@ -2633,6 +2981,7 @@ begin
       end;
     finally
         json.Free;
+        rowtext.Free;
     end;
 end;
 procedure TfmMCX.ShowJSONData(AParent : TTreeNode; Data : TJSONData; toplevel: boolean=false);
@@ -2905,8 +3254,13 @@ begin
           if(tabInputData.Controls[i] is TStringGrid) then begin
              sg:=tabInputData.Controls[i] as TStringGrid;
              idx:=MapList.IndexOf(sg.Hint);
-             if(idx>=0) then
+             if(idx>=0) then begin
+                 if((sg.Name='sgMedia') or (sg.Name='sgDet') ) then begin
+                     sg.RowCount:=1;
+                     sg.RowCount:=20;
+                 end;
                  StrToGrid(node.SubItems.Strings[idx],sg);
+             end;
              continue;
           end;
         finally

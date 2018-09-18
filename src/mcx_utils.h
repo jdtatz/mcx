@@ -11,7 +11,7 @@
 **          by Graphics Processing Units,"</a> Optics Express, 17(22) 20178-20190 (2009).
 **  \li \c (\b Yu2018) Leiming Yu, Fanny Nina-Paravecino, David Kaeli, and Qianqian Fang,
 **          "Scalable and massively parallel Monte Carlo photon transport
-**           simulations for heterogeneous computing platforms," J. Biomed. Optics, (in press) 2018.
+**           simulations for heterogeneous computing platforms," J. Biomed. Optics, 23(1), 010504, 2018.
 **
 **  \section slicense License
 **          GPL v3, see LICENSE.txt for details
@@ -22,7 +22,7 @@
 
 @brief   MCX configuration header
 *******************************************************************************/
-
+                                                                                         
 #ifndef _MCEXTREME_UTILITIES_H
 #define _MCEXTREME_UTILITIES_H
 
@@ -81,7 +81,8 @@ typedef struct MCXHistoryHeader{
 	float unitinmm;                /**< what is the voxel size of the simulation */
 	unsigned int  seedbyte;        /**< how many bytes per RNG seed */
         float normalizer;              /**< what is the normalization factor */
-	int reserved[5];               /**< reserved fields for future extension */
+	int respin;                    /**< if positive, repeat count so total photon=totalphoton*respin; if negative, total number is processed in respin subset */
+	int reserved[4];               /**< reserved fields for future extension */
 } History;
 
 /**
@@ -89,6 +90,7 @@ typedef struct MCXHistoryHeader{
  */
 
 typedef struct PhotonReplay{
+	int   *detid;                 /**< pointer to the detector index */
 	void  *seed;                  /**< pointer to the seeds of the replayed photon */
 	float *weight;                /**< pointer to the detected photon weight array */
 	float *tof;                   /**< pointer to the detected photon time-of-fly array */
@@ -122,7 +124,7 @@ typedef struct MCXGPUInfo {
  */
 
 typedef struct MCXConfig{
-	int nphoton;                  /**<total simulated photon number*/
+	size_t nphoton;               /**<total simulated photon number*/
         unsigned int nblocksize;      /**<thread block size*/
 	unsigned int nthread;         /**<num of total threads, multiple of 128*/
 	int seed;                     /**<random number generator seed*/
@@ -147,7 +149,7 @@ typedef struct MCXConfig{
 	float4 *detpos;               /**<detector positions and radius, overwrite detradius*/
 
 	unsigned int maxgate;         /**<simultaneous recording gates*/
-	unsigned int respin;          /**<number of repeatitions*/
+	int respin;          /**<number of repeatitions*/
 	unsigned int printnum;        /**<number of printed threads (for debugging)*/
 	unsigned int reseedlimit;     /**<number of scattering events per thread before the RNG is reseeded*/
 	int gpuid;                    /**<the ID of the GPU to use, starting from 1, 0 for auto*/
@@ -162,13 +164,15 @@ typedef struct MCXConfig{
 	char issavedet;              /**<1 to count all photons hits the detectors*/
 	char issave2pt;              /**<1 to save the 2-point distribution, 0 do not save*/
 	char isgpuinfo;              /**<1 to print gpu info when attach, 0 do not print*/
-        char issrcfrom0;             /**<1 do not subtract 1 from src/det positions, 0 subtract 1*/
+        char isspecular;             /**<1 calculate the initial specular ref if outside the mesh, 0 do not calculate*/
+	char issrcfrom0;             /**<1 do not subtract 1 from src/det positions, 0 subtract 1*/
         char isdumpmask;             /**<1 dump detector mask; 0 not*/
 	char autopilot;              /**<1 optimal setting for dedicated card, 2, for non dedicated card*/
 	char issaveseed;             /**<1 save the seed for a detected photon, 0 do not save*/
 	char issaveexit;             /**<1 save the exit position and dir of a detected photon, 0 do not save*/
 	char ismomentum;             /**<1 save the momentum of a detected photon, 0 do not save*/
 	char issaveref;              /**<1 save diffuse reflectance at the boundary voxels, 0 do not save*/
+        char ismomentum;             /**<1 to save momentum transfer for detected photons, implies issavedet=1*/
 	char srctype;                /**<0:pencil,1:isotropic,2:cone,3:gaussian,4:planar,5:pattern,\
                                          6:fourier,7:arcsine,8:disk,9:fourierx,10:fourierx2d,11:zgaussian,12:line,13:slit*/
         char outputtype;             /**<'X' output is flux, 'F' output is fluence, 'E' energy deposit*/
@@ -180,7 +184,7 @@ typedef struct MCXConfig{
         History his;                 /**<header info of the history file*/
 	float *exportfield;          /**<memory buffer when returning the flux to external programs such as matlab*/
 	float *exportdetected;       /**<memory buffer when returning the partial length info to external programs such as matlab*/
-	unsigned int detectedcount;  /**<total number of detected photons*/
+	unsigned long int detectedcount;  /**<total number of detected photons*/
         char rootpath[MAX_PATH_LENGTH]; /**<sets the input and output root folder*/
         char *shapedata;             /**<a pointer points to a string defining the JSON-formatted shape data*/
 	int maxvoidstep;             /**< max number of steps that a photon can advance before reaching a non-zero voxel*/

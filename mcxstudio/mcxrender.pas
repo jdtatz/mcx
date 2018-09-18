@@ -15,8 +15,9 @@ uses
   SysUtils, Classes, Graphics, Controls, Forms, Dialogs, GLScene, GLObjects,
   ExtCtrls, ComCtrls, ActnList, ExtDlgs, SynEdit, SynHighlighterJScript,
   synhighlighterunixshellscript, GLBehaviours, GLTexture, GLVectorGeometry,
-  GLLCLViewer, GLGeomObjects, GLCoordinates, GLCrossPlatform,GLGraphics,
-  GLMaterial, GLColor, GLState, GLSkydome, Types, strutils, fpjson, jsonparser;
+  GLLCLViewer, GLGeomObjects, GLCoordinates, GLCrossPlatform, GLGraphics,
+  GLMaterial, GLColor, GLState, GLSkydome, GLMesh, Types, strutils, fpjson,
+  jsonparser;
 
 type
 
@@ -32,12 +33,9 @@ type
     acLoadJSON: TAction;
     acSaveJSON: TAction;
     glCanvas: TGLSceneViewer;
-    GLDisk1: TGLDisk;
     glDomain: TGLCube;
     glLight2: TGLLightSource;
     glOrigin: TGLPoints;
-    GLPlane1: TGLPlane;
-    GLPolygon1: TGLPolygon;
     glShape: TGLScene;
     glCamera: TGLCamera;
     glLight1: TGLLightSource;
@@ -90,7 +88,7 @@ type
     procedure AddName(jobj: TJSONObject);
     procedure AddSource(jobj: TJSONData);
     procedure AddDiskSource(jobj: TJSONData);
-    procedure AddPlanarSource(jobj: TJSONData);
+    procedure AddPlanarSource(jobj: TJSONData; isorth: boolean=false);
     procedure AddPattern3DSource(jobj: TJSONData);
     procedure AddDetector(jobj: TJSONData);
     procedure plEditorMouseEnter(Sender: TObject);
@@ -142,7 +140,7 @@ begin
      if(jobj.Count=1) and (jobj.Items[0].Count>0) then
          jobj:=TJSONObject(jobj.Items[0]);
      if(jobj.FindPath('Tag')=nil) or (jobj.FindPath('Size')=nil) then begin
-        MessageDlg('Error', 'Malformed JSON Grid shape construct', mtError, [mbOK],0);
+        MessageDlg('Warning', 'Malformed JSON Grid shape construct', mtError, [mbOK],0);
         exit;
      end;
 
@@ -175,7 +173,7 @@ begin
      if(jobj.Count=1) and (jobj.Items[0].Count>0) then
          jobj:=TJSONObject(jobj.Items[0]);
      if not (jobj is TJSONArray) then begin
-        MessageDlg('Error', 'Malformed JSON Origin shape construct', mtError, [mbOK],0);
+        MessageDlg('Warning', 'Malformed JSON Origin shape construct', mtError, [mbOK],0);
         exit;
      end;
 
@@ -184,7 +182,7 @@ begin
 
      data:=TJSONArray(jobj);
 
-     obj:=TGLPoints.Create(glSpace);
+     obj:=TGLPoints.Create(Self);
      obj.Position.X:=data.Items[0].AsFloat;
      obj.Position.Y:=data.Items[1].AsFloat;
      obj.Position.Z:=data.Items[2].AsFloat;
@@ -203,10 +201,10 @@ begin
      if(jobj.Count=1) and (jobj.Items[0].Count>0) then
          jobj:=TJSONObject(jobj.Items[0]);
      if(jobj.FindPath('Tag')=nil) or (jobj.FindPath('Size')=nil) or (jobj.FindPath('O')=nil) then begin
-        MessageDlg('Error', 'Malformed JSON Box shape construct', mtError, [mbOK],0);
+        MessageDlg('Warning', 'Malformed JSON Box shape construct', mtError, [mbOK],0);
         exit;
      end;
-     obj:=TGLCube.Create(glSpace);
+     obj:=TGLCube.Create(Self);
 
      obj.Up.SetVector(0,0,1);
      obj.Direction.SetVector(0,1,0);
@@ -238,10 +236,10 @@ begin
      if(jobj.Count=1) and (jobj.Items[0].Count>0) then
          jobj:=TJSONObject(jobj.Items[0]);
      if(jobj.FindPath('Tag')=nil) or (jobj.FindPath('R')=nil) or (jobj.FindPath('O')=nil) then begin
-        MessageDlg('Error', 'Malformed JSON Sphere shape construct', mtError, [mbOK],0);
+        MessageDlg('Warning', 'Malformed JSON Sphere shape construct', mtError, [mbOK],0);
         exit;
      end;
-     obj:=TGLSphere.Create(glSpace);
+     obj:=TGLSphere.Create(Self);
      obj.Up.SetVector(0,0,1);
      obj.Direction.SetVector(0,1,0);
 
@@ -271,10 +269,10 @@ begin
      if(jobj.Count=1) and (jobj.Items[0].Count>0) then
          jobj:=TJSONObject(jobj.Items[0]);
      if(jobj.FindPath('Tag')=nil) or (jobj.FindPath('C0')=nil) or (jobj.FindPath('C1')=nil) or (jobj.FindPath('R')=nil) then begin
-        MessageDlg('Error', 'Malformed JSON Cylinder shape construct', mtError, [mbOK],0);
+        MessageDlg('Warning', 'Malformed JSON Cylinder shape construct', mtError, [mbOK],0);
         exit;
      end;
-     obj:=TGLCylinder.Create(glSpace);
+     obj:=TGLCylinder.Create(Self);
      obj.Up.SetVector(0,0,1);
      obj.Direction.SetVector(0,1,0);
      obj.Alignment:=caBottom;
@@ -319,20 +317,20 @@ begin
      if(jobj.Count=1) and (jobj.Items[0].Count>0) then
          jobj:=TJSONObject(jobj.Items[0]);
      if not (jobj is TJSONArray) then begin
-        MessageDlg('Error', 'Malformed JSON ?Layers shape construct', mtError, [mbOK],0);
+        MessageDlg('Warning', 'Malformed JSON ?Layers shape construct', mtError, [mbOK],0);
         exit;
      end;
 
      data:=TJSONArray(jobj);
      for i:=0 to jobj.Count-1 do begin
-       obj:=TGLCube.Create(glSpace);
+       obj:=TGLCube.Create(Self);
        if (data.Items[i].Count = 0) then begin
            elem:=data;
        end else begin
            elem:=data.Items[i];
        end;
        if (elem.Count <> 3) then begin
-          MessageDlg('Error', 'Malformed JSON ?Layers shape element', mtError, [mbOK],0);
+          MessageDlg('Warning', 'Malformed JSON ?Layers shape element', mtError, [mbOK],0);
           exit;
        end;
 
@@ -387,7 +385,7 @@ begin
      if(jobj.Count=1) and (jobj.Items[0].Count>0) then
          jobj:=TJSONObject(jobj.Items[0]);
      if(jobj.FindPath('Tag')=nil) or (jobj.FindPath('Bound')=nil) then begin
-        MessageDlg('Error', 'Malformed JSON ?Slabs shape construct', mtError, [mbOK],0);
+        MessageDlg('Warning', 'Malformed JSON ?Slabs shape construct', mtError, [mbOK],0);
         exit;
      end;
 
@@ -405,7 +403,7 @@ begin
 
        obj:=TGLCube.Create(Self);
        if (elem.Count <> 2) then begin
-          MessageDlg('Error', 'Malformed JSON ?Slabs shape element', mtError, [mbOK],0);
+          MessageDlg('Warning', 'Malformed JSON ?Slabs shape element', mtError, [mbOK],0);
           exit;
        end;
 
@@ -445,36 +443,48 @@ begin
      end;
 end;
 
-procedure TfmDomain.AddPlanarSource(jobj: TJSONData);
+procedure TfmDomain.AddPlanarSource(jobj: TJSONData; isorth: boolean=false);
 var
      objtag: integer;
-     obj: TGLPolygon;
-     data,data1,data2: TJSONArray;
+     obj: TGLMesh;
+     v0,v1,v2: TAffineVector;
+     data,data1,data2,dir: TJSONArray;
 begin
      if(jobj.Count=1) and (jobj.Items[0].Count>0) then
          jobj:=TJSONObject(jobj.Items[0]);
      if(jobj.FindPath('Param1')=nil) or (jobj.FindPath('Param2')=nil) then begin
-        MessageDlg('Error', 'Malformed JSON Disk Source construct', mtError, [mbOK],0);
+        MessageDlg('Warning', 'Malformed JSON Disk Source construct', mtError, [mbOK],0);
         exit;
      end;
-     obj:=TGLPolygon.Create(Self);
+     obj:=TGLMesh.Create(Self);
 
-     obj.Up.SetVector(0,0,1);
+     obj.Up.SetVector(0,1,0);
+     obj.Direction.SetVector(0,0,1);
 
      data:=TJSONArray(jobj.FindPath('Pos'));
      data1:=TJSONArray(jobj.FindPath('Param1'));
      data2:=TJSONArray(jobj.FindPath('Param2'));
-     obj.Nodes.AddNode(data.Items[0].AsFloat, data.Items[1].AsFloat, data.Items[2].AsFloat);
-     obj.Nodes.AddNode(data.Items[0].AsFloat+data1.Items[0].AsFloat, data.Items[1].AsFloat+data1.Items[1].AsFloat, data.Items[2].AsFloat+data1.Items[2].AsFloat);
-     obj.Nodes.AddNode(data.Items[0].AsFloat+data1.Items[0].AsFloat+data2.Items[0].AsFloat, data.Items[1].AsFloat+data1.Items[1].AsFloat+data2.Items[1].AsFloat, data.Items[2].AsFloat+data1.Items[2].AsFloat+data2.Items[2].AsFloat);
-     obj.Nodes.AddNode(data.Items[0].AsFloat+data2.Items[0].AsFloat, data.Items[1].AsFloat+data2.Items[1].AsFloat, data.Items[2].AsFloat+data2.Items[2].AsFloat);
-     obj.Nodes.AddNode(data.Items[0].AsFloat, data.Items[1].AsFloat, data.Items[2].AsFloat);
+     dir:=TJSONArray(jobj.FindPath('Dir'));
+
+     obj.Mode:=mmQuads;
+     obj.VertexMode:=vmV;
+
+     obj.Vertices.Clear;
+
+     v0:= AffineVectorMake(data.Items[0].AsFloat, data.Items[1].AsFloat, data.Items[2].AsFloat);
+     v1:= AffineVectorMake(data1.Items[0].AsFloat, data1.Items[1].AsFloat, data1.Items[2].AsFloat);
+     v2:= AffineVectorMake(data2.Items[0].AsFloat, data2.Items[1].AsFloat, data2.Items[2].AsFloat);
+
+     if(isorth) then
+         v2:=VectorCrossProduct(AffineVectorMake(dir.Items[0].AsFloat, dir.Items[1].AsFloat, dir.Items[2].AsFloat),v1);
+
+     obj.Vertices.AddVertex(v0,nullvector,clrYellow);
+     obj.Vertices.AddVertex(VectorAdd(v0,v1),nullvector,clrYellow);
+     obj.Vertices.AddVertex(VectorAdd(v0,VectorAdd(v1,v2)),nullvector,clrYellow);
+     obj.Vertices.AddVertex(VectorAdd(v0,v2),nullvector,clrYellow);
 
      obj.Material.FrontProperties.Diffuse.SetColor(1.0,1.0,0.0,1);
      obj.Material.BackProperties.Diffuse.SetColor(1.0,1.0,0.0,1);
-
-     data:=TJSONArray(jobj.FindPath('Dir'));
-     obj.Direction.SetVector(data.Items[0].AsFloat,data.Items[1].AsFloat,data.Items[2].AsFloat);
 
      glSpace.AddChild(obj);
 end;
@@ -487,10 +497,10 @@ begin
      if(jobj.Count=1) and (jobj.Items[0].Count>0) then
          jobj:=TJSONObject(jobj.Items[0]);
      if(jobj.FindPath('Param1')=nil) then begin
-        MessageDlg('Error', 'Malformed JSON Disk Source construct', mtError, [mbOK],0);
+        MessageDlg('Warning', 'Malformed JSON Disk Source construct', mtError, [mbOK],0);
         exit;
      end;
-     obj:=TGLDisk.Create(glSpace);
+     obj:=TGLDisk.Create(Self);
 
      obj.Up.SetVector(0,0,1);
 
@@ -520,10 +530,10 @@ begin
      if(jobj.Count=1) and (jobj.Items[0].Count>0) then
          jobj:=TJSONObject(jobj.Items[0]);
      if(jobj.FindPath('Param1')=nil ) then begin
-        MessageDlg('Error', 'Malformed JSON Pattern3D source construct', mtError, [mbOK],0);
+        MessageDlg('Warning', 'Malformed JSON Pattern3D source construct', mtError, [mbOK],0);
         exit;
      end;
-     obj:=TGLCube.Create(glSpace);
+     obj:=TGLCube.Create(Self);
 
      obj.Up.SetVector(0,0,1);
      obj.Direction.SetVector(0,1,0);
@@ -554,10 +564,10 @@ begin
      if(jobj.Count=1) and (jobj.Items[0].Count>0) then
          jobj:=TJSONObject(jobj.Items[0]);
      if(jobj.FindPath('Pos')=nil) or (jobj.FindPath('Dir')=nil) then begin
-        MessageDlg('Error', 'Malformed JSON Source construct', mtError, [mbOK],0);
+        MessageDlg('Warning', 'Malformed JSON Source construct', mtError, [mbOK],0);
         exit;
      end;
-     obj:=TGLPoints.Create(glSpace);
+     obj:=TGLPoints.Create(Self);
 
      obj.Up.SetVector(0,0,1);
 
@@ -571,7 +581,7 @@ begin
 
      glSpace.AddChild(obj);
 
-     dir:=TGLArrowLine.Create(glSpace);
+     dir:=TGLArrowLine.Create(Self);
      data:=TJSONArray(jobj.FindPath('Dir'));
      dir.Position:=obj.Position;
      dir.Direction.SetVector(data.Items[0].AsFloat,data.Items[1].AsFloat,data.Items[2].AsFloat);
@@ -590,11 +600,12 @@ begin
      glSpace.AddChild(dir);
 
      if(jobj.FindPath('Type') <> nil) then begin
-         Case AnsiIndexStr(jobj.FindPath('Type').AsString, ['gaussian','disk', 'planar', 'pattern', 'fourier',
+         Case AnsiIndexStr(jobj.FindPath('Type').AsString, ['gaussian','disk','zgaussian', 'planar', 'pattern', 'fourier',
             'fourierx', 'fourierx2d','pattern3d']) of
-              0..1:  AddDiskSource(jobj);      //Origin
-              2..6:  AddPlanarSource(jobj);    //Planar Source
-              7:     AddPattern3DSource(jobj); //Pattern3D source
+              0..2:  AddDiskSource(jobj);      //Origin
+              3..5:  AddPlanarSource(jobj, false);    //Planar Source
+              6..7:  AddPlanarSource(jobj, true);    //Planar Source
+              8:     AddPattern3DSource(jobj); //Pattern3D source
            else
            end;
      end;
@@ -616,11 +627,11 @@ begin
        end;
 
        if(elem.FindPath('Pos')=nil) or (elem.FindPath('R')=nil) then begin
-          MessageDlg('Error', 'Malformed JSON Detector construct', mtError, [mbOK],0);
+          MessageDlg('Warning', 'Malformed JSON Detector construct', mtError, [mbOK],0);
           exit;
        end;
 
-       obj:=TGLSphere.Create(glSpace);
+       obj:=TGLSphere.Create(Self);
 
        obj.Up.SetVector(0,0,1);
 

@@ -11,7 +11,7 @@
 **          by Graphics Processing Units,"</a> Optics Express, 17(22) 20178-20190 (2009).
 **  \li \c (\b Yu2018) Leiming Yu, Fanny Nina-Paravecino, David Kaeli, and Qianqian Fang,
 **          "Scalable and massively parallel Monte Carlo photon transport
-**           simulations for heterogeneous computing platforms," J. Biomed. Optics, (in press) 2018.
+**           simulations for heterogeneous computing platforms," J. Biomed. Optics, 23(1), 010504, 2018.
 **
 **  \section slicense License
 **          GPL v3, see LICENSE.txt for details
@@ -44,6 +44,7 @@ cudaMemcpyDeviceToHost);}
 #define int3(a,b,c) make_int3(a,b,c)               /**< int3 constructor */
 #define uint2(a,b) make_uint2(a,b)                 /**< uint2 constructor */
 #define uint3(a,b,c) make_uint3(a,b,c)             /**< uint3 constructor */
+#define uint4(a,b,c,d) make_uint4(a,b,c,d)         /**< uint4 constructor */
 #define float1(a) make_float1(a)                   /**< float1 constructor */
 #define float2(a,b) make_float2(a,b)               /**< float2 constructor */
 #define float3(a,b,c) make_float3(a,b,c)           /**< float3 constructor */

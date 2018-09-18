@@ -11,7 +11,7 @@
 **          by Graphics Processing Units,"</a> Optics Express, 17(22) 20178-20190 (2009).
 **  \li \c (\b Yu2018) Leiming Yu, Fanny Nina-Paravecino, David Kaeli, and Qianqian Fang,
 **          "Scalable and massively parallel Monte Carlo photon transport
-**           simulations for heterogeneous computing platforms," J. Biomed. Optics, (in press) 2018.
+**           simulations for heterogeneous computing platforms," J. Biomed. Optics, 23(1), 010504, 2018.
 **
 **  \section slicense License
 **          GPL v3, see LICENSE.txt for details
@@ -35,7 +35,9 @@
     #include "cuda_fp16.h"
 #endif
 
-#if defined(USE_XORSHIFT128P_RAND)
+#if defined(USE_XOROSHIRO128P_RAND)
+    #include "xoroshiro128p_rand.cu" ///< use xorshift128+ RNG (XORSHIFT128P)
+#elif defined(USE_XORSHIFT128P_RAND)
     #include "xorshift128p_rand.cu" ///< use xorshift128+ RNG (XORSHIFT128P)
 #elif defined(USE_POSIX_RAND)
     #include "posix_rand.cu"        ///< use POSIX erand48 RNG (POSIX)
@@ -100,11 +102,11 @@ extern __shared__ float sharedmem[];
  * @brief Floating-point atomic addition
  */
  
-__device__ inline void atomicadd(float* address, float value){
+__device__ inline float atomicadd(float* address, float value){
 
 #if __CUDA_ARCH__ >= 200 ///< for Fermi, atomicAdd supports floats
 
-  atomicAdd(address,value);
+  return atomicAdd(address,value);
 
 #elif __CUDA_ARCH__ >= 110
 
@@ -112,7 +114,7 @@ __device__ inline void atomicadd(float* address, float value){
 // http://forums.nvidia.com/index.php?showtopic=158039&view=findpost&p=991561
   float old = value;  
   while ((old = atomicExch(address, atomicExch(address, 0.0f)+old))!=0.0f);
-
+  return old;
 #endif
 
 }
@@ -189,14 +191,13 @@ __device__ inline uint finddetector(MCXpos *p0){
  * @param[in] detectedphoton: variable in the global-mem recording the total detected photons
  * @param[in] nscat: number of scattering events of the current photon
  * @param[in] ppath: buffer in the shared-mem to store the photon partial-pathlengths
- * @param[in] pmom: buffer in the shared-mem to store the photon momentum transfer data
  * @param[in] p0: the position/weight of the current photon packet
  * @param[in] v: the direction vector of the current photon packet
  * @param[in] t: random number generator (RNG) states
  * @param[in] seeddata: the RNG seed of the photon at launch, need to save for replay 
  */
 
-__device__ inline void savedetphoton(float n_det[],uint *detectedphoton,float nscat,float *ppath,float *pmom,MCXpos *p0,MCXdir *v,RandType t[RAND_BUF_LEN],RandType *seeddata){
+__device__ inline void savedetphoton(float n_det[],uint *detectedphoton,float nscat,float *ppath,MCXpos *p0,MCXdir *v,RandType t[RAND_BUF_LEN],RandType *seeddata){
       uint detid=finddetector(p0);
       if(detid){
 	 uint baseaddr=atomicAdd(detectedphoton,1);
@@ -204,15 +205,13 @@ __device__ inline void savedetphoton(float n_det[],uint *detectedphoton,float ns
 	    uint i;
 	    for(i=0;i<gcfg->issaveseed*RAND_BUF_LEN;i++)
 	        seeddata[baseaddr*RAND_BUF_LEN+i]=t[i]; ///< save photon seed for replay
-	    baseaddr*=gcfg->maxmedia+2+gcfg->issaveexit*6+gcfg->ismomentum*gcfg->maxmedia;
+	    baseaddr*=gcfg->maxmedia+2+gcfg->issaveexit*6+(gcfg->ismomentum*gcfg->maxmedia);
 	    n_det[baseaddr++]=detid;
 	    n_det[baseaddr++]=nscat;
-	    for(i=0;i<gcfg->maxmedia;i++)
-		n_det[baseaddr++]=ppath[i]; ///< save partial pathlength to the memory
-	    if(gcfg->ismomentum)
-                for(i=0;i<gcfg->maxmedia;i++)
-		    n_det[baseaddr++]=pmom[i]; ///< save momentum to the memory
+	    for(i=0;i<gcfg->maxmedia*(1+gcfg->ismomentum);i++)
+		n_det[baseaddr+i]=ppath[i]; ///< save partial pathlength to the memory
 	    if(gcfg->issaveexit){
+                baseaddr+=gcfg->maxmedia*(1+gcfg->ismomentum);
 	        *((float3*)(n_det+baseaddr))=float3(p0->x,p0->y,p0->z);
 		baseaddr+=3;
 		*((float3*)(n_det+baseaddr))=float3(v->x,v->y,v->z);
@@ -414,10 +413,14 @@ __device__ inline void transmit(MCXdir *v, float n1, float n2,int flipdir){
       v->y*=tmp0;
       v->z*=tmp0;
       (flipdir==0) ?
-          (v->x=sqrtf(1.f - v->y*v->y - v->z*v->z)*((v->x>0.f)-(v->x<0.f))):
+          (v->x= ((tmp0 = v->y*v->y + v->z*v->z) <1.f) ? sqrtf(1.f - tmp0)*((v->x>0.f)-(v->x<0.f)) : 0.f):
 	  ((flipdir==1) ? 
-	      (v->y=sqrtf(1.f - v->x*v->x - v->z*v->z)*((v->y>0.f)-(v->y<0.f))):
-	      (v->z=sqrtf(1.f - v->x*v->x - v->y*v->y)*((v->z>0.f)-(v->z<0.f))));
+	      (v->y=((tmp0 = v->x*v->x + v->z*v->z) <1.f) ? sqrtf(1.f - tmp0)*((v->y>0.f)-(v->y<0.f)) : 0.f):
+	      (v->z=((tmp0 = v->x*v->x + v->y*v->y) <1.f) ? sqrtf(1.f - tmp0)*((v->z>0.f)-(v->z<0.f)) : 0.f));
+      tmp0=rsqrtf(v->x*v->x + v->y*v->y + v->z*v->z);
+      v->x*=tmp0;
+      v->y*=tmp0;
+      v->z*=tmp0;
 }
 
 /**
@@ -499,7 +502,7 @@ __device__ inline int skipvoid(MCXpos *p,MCXdir *v,MCXtime *f,float3* rv,uint me
 		}
                 f->t= (gcfg->voidtime) ? f->t : 0.f;
 
-		if(gproperty[media[idx1d] & MED_MASK].w!=gproperty[0].w){
+		if(gcfg->isspecular && gproperty[media[idx1d] & MED_MASK].w!=gproperty[0].w){
 	            p->w*=1.f-reflectcoeff(v, gproperty[0].w,gproperty[media[idx1d] & MED_MASK].w,flipdir);
                     GPUDEBUG(("transmitted intensity w=%e\n",p->w));
 	            if(p->w>EPS){
@@ -598,12 +601,12 @@ __device__ inline void rotatevector(MCXdir *v, float stheta, float ctheta, float
  * @param[in,out] rv: the reciprocal direction vector of the photon (rv[i]=1/v[i])
  * @param[out] prop: the optical properties of the voxel the photon is launched into
  * @param[in,out] idx1d: the linear index of the voxel containing the photon at launch
+ * @param[in] field: the 3D array to store photon weights
  * @param[in,out] mediaid: the medium index at the voxel at launch
  * @param[in,out] w0: initial weight, reset here after launch
  * @param[in,out] Lmove: photon movement length variable, reset to 0 after launch
  * @param[in] isdet: whether the previous photon being terminated lands at a detector
  * @param[in,out] ppath: pointer to the shared-mem buffer to store photon partial-path data
- * @param[in,out] pmom: pointer to the shared-mem buffer to store photon momentum transfer data
  * @param[in,out] energyloss: register variable to accummulate the escaped photon energy
  * @param[in,out] energylaunched: register variable to accummulate the total launched photon energy
  * @param[in,out] n_det: array in the constant memory where detector positions are stored
@@ -620,8 +623,8 @@ __device__ inline void rotatevector(MCXdir *v, float stheta, float ctheta, float
  */
 
 template <int mcxsource>
-__device__ inline int launchnewphoton(MCXpos *p,MCXdir *v,MCXtime *f,float3* rv,Medium *prop,uint *idx1d,
-           uint *mediaid,float *w0,float *Lmove,int isdet, float ppath[],float pmom[],float energyloss[],float energylaunched[],float n_det[],uint *dpnum,
+__device__ inline int launchnewphoton(MCXpos *p,MCXdir *v,MCXtime *f,float3* rv,Medium *prop,uint *idx1d, float *field,
+           uint *mediaid,float *w0,float *Lmove,int isdet, float ppath[],float energyloss[],float energylaunched[],float n_det[],uint *dpnum,
 	   RandType t[RAND_BUF_LEN],RandType photonseed[RAND_BUF_LEN],
 	   uint media[],float srcpattern[],int threadid,RandType rngseed[],RandType seeddata[],float gdebugdata[],volatile int gprogress[]){
       *w0=1.f;     ///< reuse to count for launchattempt
@@ -637,11 +640,18 @@ __device__ inline int launchnewphoton(MCXpos *p,MCXdir *v,MCXtime *f,float3* rv,
       // let's handle detectors here
           if(gcfg->savedet){
              if(isdet>0 && *mediaid==0)
-	         savedetphoton(n_det,dpnum,v->nscat,ppath,pmom,p,v,photonseed,seeddata);
-             clearpath(ppath,gcfg->maxmedia);
-             if(gcfg->ismomentum) clearpath(pmom,gcfg->maxmedia);
+	         savedetphoton(n_det,dpnum,v->nscat,ppath,p,v,photonseed,seeddata);
+             clearpath(ppath,gcfg->maxmedia*(1+gcfg->ismomentum));
           }
 #endif
+          if(*mediaid==0 && *idx1d!=OUTSIDE_VOLUME && gcfg->issaveref){
+	       int tshift=MIN(gcfg->maxgate-1,(int)(floorf((f->t-gcfg->twin0)*gcfg->Rtstep)));
+#ifdef USE_ATOMIC
+               atomicadd(& field[*idx1d+tshift*gcfg->dimlen.z],-p->w);	       
+#else
+	       field[*idx1d+tshift*gcfg->dimlen.z]+=-p->w;
+#endif
+	  }
       }
 
       /**
@@ -962,7 +972,8 @@ kernel void mcx_test_rng(float field[],uint n_seed[]){
 template <int mcxsource>
 kernel void mcx_main_loop(uint media[],float field[],float genergy[],uint n_seed[],
      float4 n_pos[],float4 n_dir[],float4 n_len[],float n_det[], uint detectedphoton[], 
-     float srcpattern[],float replayweight[],float photontof[],RandType *seeddata,float *gdebugdata,volatile int *gprogress){
+     float srcpattern[],float replayweight[],float photontof[],int photondetid[], 
+     RandType *seeddata,float *gdebugdata,volatile int *gprogress){
 
      /** the 1D index of the current thread */
      int idx= blockDim.x * blockIdx.x + threadIdx.x;
@@ -1012,15 +1023,13 @@ kernel void mcx_main_loop(uint media[],float field[],float genergy[],uint n_seed
 #endif
 
 #ifdef  SAVE_DETECTORS
-     ppath+=threadIdx.x*gcfg->maxmedia*(gcfg->ismomentum ? 2 : 1); // block#2: maxmedia*thread number to store the partial
-     if(gcfg->savedet) clearpath(ppath,gcfg->maxmedia);
-     float *pmom = ppath + gcfg->maxmedia;
-     if(gcfg->savedet && gcfg->ismomentum) clearpath(pmom,gcfg->maxmedia);
+     ppath+=threadIdx.x*gcfg->maxmedia*(1+gcfg->ismomentum); // block#2: maxmedia*thread number to store the partial
+     if(gcfg->savedet) clearpath(ppath,gcfg->maxmedia*(1+gcfg->ismomentum));
 #endif
 
      gpu_rng_init(t,n_seed,idx);
 
-     if(launchnewphoton<mcxsource>(&p,v,&f,&rv,&prop,&idx1d,&mediaid,&w0,&Lmove,0,ppath,pmom,&energyloss,
+     if(launchnewphoton<mcxsource>(&p,v,&f,&rv,&prop,&idx1d,field,&mediaid,&w0,&Lmove,0,ppath,&energyloss,
        &energylaunched,n_det,detectedphoton,t,photonseed,media,srcpattern,
        idx,(RandType*)n_seed,seeddata,gdebugdata,gprogress)){
          GPUDEBUG(("thread %d: fail to launch photon\n",idx));
@@ -1089,10 +1098,14 @@ kernel void mcx_main_loop(uint media[],float field[],float genergy[],uint n_seed
                            sincosf(theta,&stheta,&ctheta);
                        }
                        GPUDEBUG(("scat theta=%f\n",theta));
-
+#ifdef SAVE_DETECTORS
+	               /** accummulate momentum transfer */
+                       if(gcfg->ismomentum)
+	                   ppath[gcfg->maxmedia+(mediaid & MED_MASK)-1]+=1.f-ctheta;
+#endif
                        /** Update direction vector with the two random angles */
 		       if(gcfg->is2d)
-		           rotatevector2d(v,stheta,ctheta);
+		           rotatevector2d(v,(rand_next_aangle(t)>0.5f ? stheta: -stheta),ctheta);
 		       else
                            rotatevector(v,stheta,ctheta,sphi,cphi);
                        v->nscat++;
@@ -1102,7 +1115,9 @@ kernel void mcx_main_loop(uint media[],float field[],float genergy[],uint n_seed
                        rv=float3(__fdividef(1.f,v->x),__fdividef(1.f,v->y),__fdividef(1.f,v->z));
                        if(gcfg->outputtype==otWP){
                             ///< photontof[] and replayweight[] should be cached using local mem to avoid global read
-                            int tshift=(int)(floorf((photontof[(idx*gcfg->threadphoton+min(idx,gcfg->oddphotons-1)+(int)f.ndone)]-gcfg->twin0)*gcfg->Rtstep));
+                            int tshift=(idx*gcfg->threadphoton+min(idx,gcfg->oddphotons-1)+(int)f.ndone);
+                            tshift=(int)(floorf((photontof[tshift]-gcfg->twin0)*gcfg->Rtstep)) + 
+                                 ( (gcfg->replaydet==-1)? ((photondetid[tshift]-1)*gcfg->maxgate) : 0);
 #ifdef USE_ATOMIC
                             if(!gcfg->isatomic){
 #endif
@@ -1157,8 +1172,6 @@ kernel void mcx_main_loop(uint media[],float field[],float genergy[],uint n_seed
 	  /** accummulate partial path of the current medium */
           if(gcfg->savedet)
 	      ppath[(mediaid & MED_MASK)-1]+=len; //(unit=grid)
-          if(gcfg->savedet && gcfg->ismomentum)
-	      pmom[(mediaid & MED_MASK)-1]+=mom;
 #endif
           mom = 0.f;
           mediaidold=mediaid | isdet;
@@ -1171,6 +1184,7 @@ kernel void mcx_main_loop(uint media[],float field[],float genergy[],uint n_seed
               /** if photon moves outside of the volume, set mediaid to 0 */
 	      mediaid=0;
 	      isdet=-1;
+	      idx1d=OUTSIDE_VOLUME;
 	  }else{
               /** otherwise, read the optical property index */
 	      mediaid=media[idx1d];
@@ -1193,7 +1207,9 @@ kernel void mcx_main_loop(uint media[],float field[],float genergy[],uint n_seed
 		  else if(gcfg->seed==SEED_FROM_FILE){
 		      if(gcfg->outputtype==otJacobian){
 		        weight=replayweight[(idx*gcfg->threadphoton+min(idx,gcfg->oddphotons-1)+(int)f.ndone)]*Lmove;
-                        tshift=(int)(floorf((photontof[(idx*gcfg->threadphoton+min(idx,gcfg->oddphotons-1)+(int)f.ndone)]-gcfg->twin0)*gcfg->Rtstep));
+			tshift=(idx*gcfg->threadphoton+min(idx,gcfg->oddphotons-1)+(int)f.ndone);
+			tshift=(int)(floorf((photontof[tshift]-gcfg->twin0)*gcfg->Rtstep)) + 
+			   ( (gcfg->replaydet==-1)? ((photondetid[tshift]-1)*gcfg->maxgate) : 0);
 		      }
 		  }else
 		      weight=(prop.mua==0.f) ? 0.f : ((w0-p.w)/(prop.mua));
@@ -1225,22 +1241,22 @@ kernel void mcx_main_loop(uint media[],float field[],float genergy[],uint n_seed
   #endif
                       }else{
                           field[idx1dold+tshift*gcfg->dimlen.z]+=weight;
-		          if(mediaid==0 && isdet>=0 &&gcfg->issaveref)
-		              field[idx1d+tshift*gcfg->dimlen.z]+=-p.w;
                       }
                   }else{
                       /** accummulate the quality to the volume using non-atomic operations  */
                       field[idx1dold+tshift*gcfg->dimlen.z]+=weight;
-		      if(mediaid==0 && isdet>=0 &&gcfg->issaveref)
-		          field[idx1d+tshift*gcfg->dimlen.z]+=-p.w;
                   }
   #ifdef USE_ATOMIC
                }else{
 	          /** accummulate the quality to the volume using atomic operations  */
                   // ifndef CUDA_NO_SM_11_ATOMIC_INTRINSICS
-		  atomicadd(& field[idx1dold+tshift*gcfg->dimlen.z], weight);
-		  if(mediaid==0 && isdet>=0 &&gcfg->issaveref)
-		      atomicadd(& field[idx1d+tshift*gcfg->dimlen.z],-p.w);
+		  float oldval=atomicadd(& field[idx1dold+tshift*gcfg->dimlen.z], weight);
+		  if(oldval>MAX_ACCUM){
+			if(atomicadd(& field[idx1dold+tshift*gcfg->dimlen.z], -oldval)<0.f)
+			    atomicadd(& field[idx1dold+tshift*gcfg->dimlen.z], oldval);
+			else
+			    atomicadd(& field[idx1dold+tshift*gcfg->dimlen.z+gcfg->dimlen.w], oldval);
+		  }
                   GPUDEBUG(("atomic write to [%d] %e, w=%f\n",idx1dold,weight,p.w));
                }
   #endif
@@ -1255,7 +1271,7 @@ kernel void mcx_main_loop(uint media[],float field[],float genergy[],uint n_seed
 	  /** launch new photon when exceed time window or moving from non-zero voxel to zero voxel without reflection */
           if((mediaid==0 && (!gcfg->doreflect || (gcfg->doreflect && n1==gproperty[mediaid].w))) || f.t>gcfg->twin1){
               GPUDEBUG(("direct relaunch at idx=[%d] mediaid=[%d], ref=[%d]\n",idx1d,mediaid,gcfg->doreflect));
-	      if(launchnewphoton<mcxsource>(&p,v,&f,&rv,&prop,&idx1d,&mediaid,&w0,&Lmove,(mediaidold & DET_MASK),ppath,pmom,
+	      if(launchnewphoton<mcxsource>(&p,v,&f,&rv,&prop,&idx1d,field,&mediaid,&w0,&Lmove,(mediaidold & DET_MASK),ppath,
 	          &energyloss,&energylaunched,n_det,detectedphoton,t,photonseed,media,srcpattern,idx,(RandType*)n_seed,seeddata,gdebugdata,gprogress))
                    break;
               isdet=mediaid & DET_MASK;
@@ -1269,7 +1285,7 @@ kernel void mcx_main_loop(uint media[],float field[],float genergy[],uint n_seed
                    p.w*=ROULETTE_SIZE;
                 else{
                    GPUDEBUG(("relaunch after Russian roulette at idx=[%d] mediaid=[%d], ref=[%d]\n",idx1d,mediaid,gcfg->doreflect));
-                   if(launchnewphoton<mcxsource>(&p,v,&f,&rv,&prop,&idx1d,&mediaid,&w0,&Lmove,(mediaidold & DET_MASK),ppath,pmom,
+                   if(launchnewphoton<mcxsource>(&p,v,&f,&rv,&prop,&idx1d,field,&mediaid,&w0,&Lmove,(mediaidold & DET_MASK),ppath,
 	                &energyloss,&energylaunched,n_det,detectedphoton,t,photonseed,media,srcpattern,idx,(RandType*)n_seed,seeddata,gdebugdata,gprogress))
                         break;
                    isdet=mediaid & DET_MASK;
@@ -1305,8 +1321,8 @@ kernel void mcx_main_loop(uint media[],float field[],float genergy[],uint n_seed
                         transmit(v,n1,prop.n,flipdir);
                         if(mediaid==0){ // transmission to external boundary
                             GPUDEBUG(("transmit to air, relaunch\n"));
-		    	    if(launchnewphoton<mcxsource>(&p,v,&f,&rv,&prop,&idx1d,&mediaid,&w0,&Lmove,(mediaidold & DET_MASK),
-			        ppath,pmom,&energyloss,&energylaunched,n_det,detectedphoton,t,photonseed,
+		    	    if(launchnewphoton<mcxsource>(&p,v,&f,&rv,&prop,&idx1d,field,&mediaid,&w0,&Lmove,(mediaidold & DET_MASK),
+			        ppath,&energyloss,&energylaunched,n_det,detectedphoton,t,photonseed,
 				media,srcpattern,idx,(RandType*)n_seed,seeddata,gdebugdata,gprogress))
                                 break;
                             isdet=mediaid & DET_MASK;
@@ -1322,8 +1338,8 @@ kernel void mcx_main_loop(uint media[],float field[],float genergy[],uint n_seed
 			(flipdir==0) ?
         		    (p.x=mcx_nextafterf(__float2int_rn(p.x), (v->x > 0.f)-(v->x < 0.f))) :
 			    ((flipdir==1) ? 
-				(p.y=mcx_nextafterf(__float2int_rn(p.y), (v->x > 0.f)-(v->x < 0.f))) :
-				(p.z=mcx_nextafterf(__float2int_rn(p.z), (v->x > 0.f)-(v->x < 0.f))) );
+				(p.y=mcx_nextafterf(__float2int_rn(p.y), (v->y > 0.f)-(v->y < 0.f))) :
+				(p.z=mcx_nextafterf(__float2int_rn(p.z), (v->z > 0.f)-(v->z < 0.f))) );
 	                GPUDEBUG(("ref p_new=[%f %f %f] v_new=[%f %f %f]\n",p.x,p.y,p.z,v->x,v->y,v->z));
                 	idx1d=idx1dold;
 		 	mediaid=(media[idx1d] & MED_MASK);
@@ -1467,8 +1483,8 @@ int mcx_list_gpu(Config *cfg, GPUInfo **info){
 	    MCX_FPRINTF(stdout,"=============================   GPU Infomation  ================================\n");
 	    MCX_FPRINTF(stdout,"Device %d of %d:\t\t%s\n",(*info)[dev].id,(*info)[dev].devcount,(*info)[dev].name);
 	    MCX_FPRINTF(stdout,"Compute Capability:\t%u.%u\n",(*info)[dev].major,(*info)[dev].minor);
-	    MCX_FPRINTF(stdout,"Global Memory:\t\t%u B\nConstant Memory:\t%u B\n\
-Shared Memory:\t\t%u B\nRegisters:\t\t%u\nClock Speed:\t\t%.2f GHz\n",
+	    MCX_FPRINTF(stdout,"Global Memory:\t\t%u B\nConstant Memory:\t%u B\n"
+				"Shared Memory:\t\t%u B\nRegisters:\t\t%u\nClock Speed:\t\t%.2f GHz\n",
                (unsigned int)(*info)[dev].globalmem,(unsigned int)(*info)[dev].constmem,
                (unsigned int)(*info)[dev].sharedmem,(unsigned int)(*info)[dev].regcount,(*info)[dev].clock*1e-6f);
 	  #if CUDART_VERSION >= 2000
@@ -1515,14 +1531,15 @@ void mcx_run_simulation(Config *cfg,GPUInfo *gpu){
      float4 c0=cfg->srcdir;
      float3 maxidx=float3(cfg->dim.x,cfg->dim.y,cfg->dim.z);
      float *energy;
-     int timegate=0, totalgates, gpuid, gpuphoton=0,threadid=0;
+     int timegate=0, totalgates, gpuid, threadid=0;
+     size_t gpuphoton=0, photoncount=0;
 
-     unsigned int photoncount=0,printnum;
+     unsigned int printnum;
      unsigned int tic,tic0,tic1,toc=0,debuglen=MCX_DEBUG_REC_LEN;
      size_t fieldlen;
      uint3 cp0=cfg->crop0,cp1=cfg->crop1;
      uint2 cachebox;
-     uint3 dimlen;
+     uint4 dimlen;
      float Vvox,fullload=0.f;
 
      dim3 mcgrid, mcblock;
@@ -1546,19 +1563,20 @@ void mcx_run_simulation(Config *cfg,GPUInfo *gpu){
      uint *gmedia;
      float4 *gPpos,*gPdir,*gPlen;
      uint   *gPseed,*gdetected;
+     int    *greplaydetid=NULL;
      float  *gPdet,*gsrcpattern=NULL,*gfield,*genergy,*greplayw=NULL,*greplaytof=NULL,*gdebugdata=NULL;
      RandType *gseeddata=NULL;
-     int detreclen=cfg->medianum+1+(cfg->issaveexit>0)*6+(cfg->ismomentum>0)*(cfg->medianum - 1);
+     int detreclen=cfg->medianum+1+(cfg->issaveexit>0)*6+((cfg->ismomentum>0)*(cfg->medianum-1));
      unsigned int is2d=(cfg->dim.x==1 ? 1 : (cfg->dim.y==1 ? 2 : (cfg->dim.z==1 ? 3 : 0)));
      MCXParam param={cfg->steps,minstep,0,0,cfg->tend,R_C0*cfg->unitinmm,
                      (uint)cfg->issave2pt,(uint)cfg->isreflect,(uint)cfg->isrefint,(uint)cfg->issavedet,1.f/cfg->tstep,
-		     p0,c0,maxidx,uint3(0,0,0),cp0,cp1,uint2(0,0),cfg->minenergy,
+		     p0,c0,maxidx,uint4(0,0,0,0),cp0,cp1,uint2(0,0),cfg->minenergy,
                      cfg->sradius*cfg->sradius,minstep*R_C0*cfg->unitinmm,cfg->srctype,
 		     cfg->srcparam1,cfg->srcparam2,cfg->voidtime,cfg->maxdetphoton,
-		     cfg->medianum-1,cfg->detnum,0,0,cfg->reseedlimit,ABS(cfg->sradius+2.f)<EPS /*isatomic*/,
-		     (uint)cfg->maxvoidstep,cfg->issaveseed>0,cfg->issaveexit>0,cfg->ismomentum>0,cfg->issaveref>0,
+		     cfg->medianum-1,cfg->detnum,cfg->maxgate,0,0,cfg->reseedlimit,ABS(cfg->sradius+2.f)<EPS /*isatomic*/,
+		     (uint)cfg->maxvoidstep,cfg->issaveseed>0,cfg->issaveexit>0,cfg->issaveref>0,cfg->ismomentum>0,cfg->isspecular>0,
 		     cfg->maxdetphoton*detreclen,cfg->seed,(uint)cfg->outputtype,0,0,cfg->faststep,
-		     cfg->debuglevel,(uint)cfg->maxjumpdebug,cfg->gscatter,is2d};
+		     cfg->debuglevel,(uint)cfg->maxjumpdebug,cfg->gscatter,is2d,cfg->replaydet};
      if(param.isatomic)
          param.skipradius2=0.f;
 
@@ -1579,14 +1597,20 @@ void mcx_run_simulation(Config *cfg,GPUInfo *gpu){
      /*only allow the master thread to modify cfg, others are read-only*/
 #pragma omp master
 {
-     if(cfg->exportfield==NULL)
-         cfg->exportfield=(float *)calloc(sizeof(float)*cfg->dim.x*cfg->dim.y*cfg->dim.z,gpu[gpuid].maxgate*2);
+     if(cfg->exportfield==NULL){
+         if(cfg->seed==SEED_FROM_FILE && cfg->replaydet==-1){
+	     cfg->exportfield=(float *)calloc(sizeof(float)*dimxyz,gpu[gpuid].maxgate*2*cfg->detnum);
+	 }else{
+             cfg->exportfield=(float *)calloc(sizeof(float)*dimxyz,gpu[gpuid].maxgate*2);
+	 }
+     }
      if(cfg->exportdetected==NULL)
          cfg->exportdetected=(float*)malloc(detreclen*cfg->maxdetphoton*sizeof(float));
      if(cfg->issaveseed && cfg->seeddata==NULL)
          cfg->seeddata=malloc(cfg->maxdetphoton*sizeof(RandType)*RAND_BUF_LEN);
      cfg->detectedcount=0;
      cfg->his.detected=0;
+     cfg->his.respin=cfg->respin;
      cfg->energytot=0.f;
      cfg->energyabs=0.f;
      cfg->energyesc=0.f;
@@ -1607,10 +1631,20 @@ void mcx_run_simulation(Config *cfg,GPUInfo *gpu){
      if(gpu[gpuid].autothread%gpu[gpuid].autoblock)
      	gpu[gpuid].autothread=(gpu[gpuid].autothread/gpu[gpuid].autoblock)*gpu[gpuid].autoblock;
 
-     if(cfg->respin>1){
-         field=(float *)calloc(sizeof(float)*dimxyz,gpu[gpuid].maxgate*2);
+     param.maxgate=gpu[gpuid].maxgate;
+
+     if(ABS(cfg->respin)>1){
+         if(cfg->seed==SEED_FROM_FILE && cfg->replaydet==-1){
+             field=(float *)calloc(sizeof(float)*dimxyz,gpu[gpuid].maxgate*2*cfg->detnum);
+	 }else{
+             field=(float *)calloc(sizeof(float)*dimxyz,gpu[gpuid].maxgate*2);	 
+	 }
      }else{
-         field=(float *)calloc(sizeof(float)*dimxyz,gpu[gpuid].maxgate); //the second half will be used to accumulate
+         if(cfg->seed==SEED_FROM_FILE && cfg->replaydet==-1){
+             field=(float *)calloc(sizeof(float)*dimxyz,gpu[gpuid].maxgate*cfg->detnum); //the second half will be used to accumulate
+	 }else{
+             field=(float *)calloc(sizeof(float)*dimxyz,gpu[gpuid].maxgate); //the second half will be used to accumulate
+	 }
      }
 
 #pragma omp master
@@ -1638,8 +1672,15 @@ void mcx_run_simulation(Config *cfg,GPUInfo *gpu){
      if(gpuphoton==0)
         return;
 
-     param.threadphoton=gpuphoton/gpu[gpuid].autothread/cfg->respin;
-     param.oddphotons=gpuphoton/cfg->respin-param.threadphoton*gpu[gpuid].autothread;
+     if(cfg->respin>=1){
+         param.threadphoton=gpuphoton/gpu[gpuid].autothread;
+         param.oddphotons=gpuphoton-param.threadphoton*gpu[gpuid].autothread;
+     }else if(cfg->respin<0){
+         param.threadphoton=-gpuphoton/gpu[gpuid].autothread/cfg->respin;
+         param.oddphotons=-gpuphoton/cfg->respin-param.threadphoton*gpu[gpuid].autothread;     
+     }else{
+         mcx_error(-1,"respin number can not be 0, check your -r/--repeat input or cfg.respin value",__FILE__,__LINE__);
+     }
      totalgates=(int)((cfg->tend-cfg->tstart)/cfg->tstep+0.5);
 #pragma omp master
      if(totalgates>gpu[gpuid].maxgate && cfg->isnormalized){
@@ -1648,7 +1689,10 @@ void mcx_run_simulation(Config *cfg,GPUInfo *gpu){
      }
 #pragma omp barrier
 
-     fieldlen=dimxyz*gpu[gpuid].maxgate;
+     if(cfg->seed==SEED_FROM_FILE && cfg->replaydet==-1)
+         fieldlen=dimxyz*gpu[gpuid].maxgate*cfg->detnum;
+     else
+         fieldlen=dimxyz*gpu[gpuid].maxgate;
 
      mcgrid.x=gpu[gpuid].autothread/gpu[gpuid].autoblock;
      mcblock.x=gpu[gpuid].autoblock;
@@ -1663,8 +1707,9 @@ void mcx_run_simulation(Config *cfg,GPUInfo *gpu){
            param.twin0=cfg->tstart;
            param.twin1=cfg->tend;
            Pseed=(uint*)malloc(sizeof(RandType)*RAND_BUF_LEN);
-           for (i=0; i<(int)((sizeof(RandType)>>2)*RAND_BUF_LEN); i++)
-		Pseed[i]=rand();
+           for (i=0; i<(int)(((sizeof(RandType)*RAND_BUF_LEN)>>2)); i++){
+		Pseed[i]=((rand() << 16) | (rand() << 1) | (rand() >> 14));
+	   }
            CUDA_ASSERT(cudaMalloc((void **) &gPseed, sizeof(RandType)*RAND_BUF_LEN));
 	   CUDA_ASSERT(cudaMemcpy(gPseed, Pseed, sizeof(RandType)*RAND_BUF_LEN,  cudaMemcpyHostToDevice));
            CUDA_ASSERT(cudaMalloc((void **) &gfield, sizeof(float)*fieldlen));
@@ -1713,7 +1758,7 @@ void mcx_run_simulation(Config *cfg,GPUInfo *gpu){
 
      CUDA_ASSERT(cudaMalloc((void **) &gmedia, sizeof(uint)*(dimxyz)));
      //CUDA_ASSERT(cudaBindTexture(0, texmedia, gmedia));
-     CUDA_ASSERT(cudaMalloc((void **) &gfield, sizeof(float)*fieldlen));
+     CUDA_ASSERT(cudaMalloc((void **) &gfield, sizeof(float)*fieldlen*2));
      CUDA_ASSERT(cudaMalloc((void **) &gPpos, sizeof(float4)*gpu[gpuid].autothread));
      CUDA_ASSERT(cudaMalloc((void **) &gPdir, sizeof(float4)*gpu[gpuid].autothread));
      CUDA_ASSERT(cudaMalloc((void **) &gPlen, sizeof(float4)*gpu[gpuid].autothread));
@@ -1743,6 +1788,10 @@ void mcx_run_simulation(Config *cfg,GPUInfo *gpu){
 	     CUDA_ASSERT(cudaMalloc((void **) &greplaytof, sizeof(float)*cfg->nphoton));
 	     CUDA_ASSERT(cudaMemcpy(greplaytof,cfg->replay.tof,sizeof(float)*cfg->nphoton, cudaMemcpyHostToDevice));
 	 }
+         if(cfg->replay.detid){
+	     CUDA_ASSERT(cudaMalloc((void **) &greplaydetid, sizeof(int)*cfg->nphoton));
+	     CUDA_ASSERT(cudaMemcpy(greplaydetid,cfg->replay.detid,sizeof(int)*cfg->nphoton, cudaMemcpyHostToDevice));
+	 }
      }else
          CUDA_ASSERT(cudaMalloc((void **) &gPseed, sizeof(RandType)*gpu[gpuid].autothread*RAND_BUF_LEN));
 
@@ -1767,6 +1816,7 @@ void mcx_run_simulation(Config *cfg,GPUInfo *gpu){
      dimlen.y=cfg->dim.y*cfg->dim.x;
 
      dimlen.z=cfg->dim.x*cfg->dim.y*cfg->dim.z;
+     dimlen.w=fieldlen;
 
      param.dimlen=dimlen;
      param.cachebox=cachebox;
@@ -1802,7 +1852,7 @@ void mcx_run_simulation(Config *cfg,GPUInfo *gpu){
      MCX_FPRINTF(cfg->flog,"- code name: [Vanilla MCX] compiled for GPU Capacity [%d] with CUDA [%d]\n",
          MCX_CUDA_ARCH,CUDART_VERSION);
 #endif
-     MCX_FPRINTF(cfg->flog,"- compiled with: RNG [%s] with Seed Length [%d]\n",MCX_RNG_NAME,(int)(sizeof(RandType)>>2)*RAND_BUF_LEN);
+     MCX_FPRINTF(cfg->flog,"- compiled with: RNG [%s] with Seed Length [%d]\n",MCX_RNG_NAME,(int)((sizeof(RandType)*RAND_BUF_LEN)>>2));
 #ifdef SAVE_DETECTORS
      MCX_FPRINTF(cfg->flog,"- this version CAN save photons at the detectors\n\n");
 #else
@@ -1812,8 +1862,8 @@ void mcx_run_simulation(Config *cfg,GPUInfo *gpu){
 }
 #pragma omp barrier
 
-     MCX_FPRINTF(cfg->flog,"\nGPU=%d (%s) threadph=%d extra=%d np=%d nthread=%d maxgate=%d repetition=%d\n",gpuid+1,gpu[gpuid].name,param.threadphoton,param.oddphotons,
-           gpuphoton,gpu[gpuid].autothread,gpu[gpuid].maxgate,cfg->respin);
+     MCX_FPRINTF(cfg->flog,"\nGPU=%d (%s) threadph=%d extra=%d np=%ld nthread=%d maxgate=%d repetition=%d\n",gpuid+1,gpu[gpuid].name,param.threadphoton,param.oddphotons,
+           gpuphoton,gpu[gpuid].autothread,gpu[gpuid].maxgate,ABS(cfg->respin));
      MCX_FPRINTF(cfg->flog,"initializing streams ...\t");
      fflush(cfg->flog);
 
@@ -1852,7 +1902,7 @@ void mcx_run_simulation(Config *cfg,GPUInfo *gpu){
 #endif
      if(cfg->issavedet)
         sharedbuf+=gpu[gpuid].autoblock*sizeof(float)*(cfg->medianum-1);
-     if(cfg->issavedet && cfg->ismomentum)
+     if(cfg->ismomentum)
         sharedbuf+=gpu[gpuid].autoblock*sizeof(float)*(cfg->medianum-1);
 #ifdef USE_MT_RAND
      sharedbuf+=(N+2)*sizeof(uint); // MT RNG uses N+2 uint in the shared memory
@@ -1871,8 +1921,8 @@ void mcx_run_simulation(Config *cfg,GPUInfo *gpu){
            ,param.twin0*1e9,param.twin1*1e9);
 
        //total number of repetition for the simulations, results will be accumulated to field
-       for(iter=0;iter<(int)cfg->respin;iter++){
-           CUDA_ASSERT(cudaMemset(gfield,0,sizeof(float)*fieldlen)); // cost about 1 ms
+       for(iter=0;iter<ABS(cfg->respin);iter++){
+           CUDA_ASSERT(cudaMemset(gfield,0,sizeof(float)*fieldlen*2)); // cost about 1 ms
            CUDA_ASSERT(cudaMemset(gPdet,0,sizeof(float)*cfg->maxdetphoton*(detreclen)));
            if(cfg->issaveseed)
 	       CUDA_ASSERT(cudaMemset(gseeddata,0,sizeof(RandType)*cfg->maxdetphoton*RAND_BUF_LEN));
@@ -1886,8 +1936,8 @@ void mcx_run_simulation(Config *cfg,GPUInfo *gpu){
 	   CUDA_ASSERT(cudaMemcpy(gPlen,  Plen,  sizeof(float4)*gpu[gpuid].autothread,  cudaMemcpyHostToDevice));
 
            if(cfg->seed!=SEED_FROM_FILE){
-             for (i=0; i<gpu[gpuid].autothread*((int)(sizeof(RandType))>>2)*RAND_BUF_LEN; i++)
-               Pseed[i]=rand();
+             for (i=0; i<gpu[gpuid].autothread*((int)(sizeof(RandType)*RAND_BUF_LEN)>>2); i++)
+               Pseed[i]=((rand() << 16) | (rand() << 1) | (rand() >> 14));
 	     CUDA_ASSERT(cudaMemcpy(gPseed, Pseed, sizeof(RandType)*gpu[gpuid].autothread*RAND_BUF_LEN,  cudaMemcpyHostToDevice));
            }
            tic0=GetTimeMillis();
@@ -1902,22 +1952,22 @@ void mcx_run_simulation(Config *cfg,GPUInfo *gpu){
            mcx_flush(cfg);
 
 	   switch(cfg->srctype) {
-		case(MCX_SRC_PENCIL): mcx_main_loop<MCX_SRC_PENCIL> <<<mcgrid,mcblock,sharedbuf>>>(gmedia,gfield,genergy,gPseed,gPpos,gPdir,gPlen,gPdet,gdetected,gsrcpattern,greplayw,greplaytof,gseeddata,gdebugdata,gprogress); break;
-		case(MCX_SRC_ISOTROPIC): mcx_main_loop<MCX_SRC_ISOTROPIC> <<<mcgrid,mcblock,sharedbuf>>>(gmedia,gfield,genergy,gPseed,gPpos,gPdir,gPlen,gPdet,gdetected,gsrcpattern,greplayw,greplaytof,gseeddata,gdebugdata,gprogress); break;
-		case(MCX_SRC_CONE): mcx_main_loop<MCX_SRC_CONE> <<<mcgrid,mcblock,sharedbuf>>>(gmedia,gfield,genergy,gPseed,gPpos,gPdir,gPlen,gPdet,gdetected,gsrcpattern,greplayw,greplaytof,gseeddata,gdebugdata,gprogress); break;
-		case(MCX_SRC_GAUSSIAN): mcx_main_loop<MCX_SRC_GAUSSIAN> <<<mcgrid,mcblock,sharedbuf>>>(gmedia,gfield,genergy,gPseed,gPpos,gPdir,gPlen,gPdet,gdetected,gsrcpattern,greplayw,greplaytof,gseeddata,gdebugdata,gprogress); break;
-		case(MCX_SRC_PLANAR): mcx_main_loop<MCX_SRC_PLANAR> <<<mcgrid,mcblock,sharedbuf>>>(gmedia,gfield,genergy,gPseed,gPpos,gPdir,gPlen,gPdet,gdetected,gsrcpattern,greplayw,greplaytof,gseeddata,gdebugdata,gprogress); break;
-		case(MCX_SRC_PATTERN): mcx_main_loop<MCX_SRC_PATTERN> <<<mcgrid,mcblock,sharedbuf>>>(gmedia,gfield,genergy,gPseed,gPpos,gPdir,gPlen,gPdet,gdetected,gsrcpattern,greplayw,greplaytof,gseeddata,gdebugdata,gprogress); break;
-		case(MCX_SRC_FOURIER): mcx_main_loop<MCX_SRC_FOURIER> <<<mcgrid,mcblock,sharedbuf>>>(gmedia,gfield,genergy,gPseed,gPpos,gPdir,gPlen,gPdet,gdetected,gsrcpattern,greplayw,greplaytof,gseeddata,gdebugdata,gprogress); break;
-		case(MCX_SRC_ARCSINE): mcx_main_loop<MCX_SRC_ARCSINE> <<<mcgrid,mcblock,sharedbuf>>>(gmedia,gfield,genergy,gPseed,gPpos,gPdir,gPlen,gPdet,gdetected,gsrcpattern,greplayw,greplaytof,gseeddata,gdebugdata,gprogress); break;
-		case(MCX_SRC_DISK): mcx_main_loop<MCX_SRC_DISK> <<<mcgrid,mcblock,sharedbuf>>>(gmedia,gfield,genergy,gPseed,gPpos,gPdir,gPlen,gPdet,gdetected,gsrcpattern,greplayw,greplaytof,gseeddata,gdebugdata,gprogress); break;
-		case(MCX_SRC_FOURIERX): mcx_main_loop<MCX_SRC_FOURIERX> <<<mcgrid,mcblock,sharedbuf>>>(gmedia,gfield,genergy,gPseed,gPpos,gPdir,gPlen,gPdet,gdetected,gsrcpattern,greplayw,greplaytof,gseeddata,gdebugdata,gprogress); break;
-		case(MCX_SRC_FOURIERX2D): mcx_main_loop<MCX_SRC_FOURIERX2D> <<<mcgrid,mcblock,sharedbuf>>>(gmedia,gfield,genergy,gPseed,gPpos,gPdir,gPlen,gPdet,gdetected,gsrcpattern,greplayw,greplaytof,gseeddata,gdebugdata,gprogress); break;
-		case(MCX_SRC_ZGAUSSIAN): mcx_main_loop<MCX_SRC_ZGAUSSIAN> <<<mcgrid,mcblock,sharedbuf>>>(gmedia,gfield,genergy,gPseed,gPpos,gPdir,gPlen,gPdet,gdetected,gsrcpattern,greplayw,greplaytof,gseeddata,gdebugdata,gprogress); break;
-		case(MCX_SRC_LINE): mcx_main_loop<MCX_SRC_LINE> <<<mcgrid,mcblock,sharedbuf>>>(gmedia,gfield,genergy,gPseed,gPpos,gPdir,gPlen,gPdet,gdetected,gsrcpattern,greplayw,greplaytof,gseeddata,gdebugdata,gprogress); break;
-		case(MCX_SRC_SLIT): mcx_main_loop<MCX_SRC_SLIT> <<<mcgrid,mcblock,sharedbuf>>>(gmedia,gfield,genergy,gPseed,gPpos,gPdir,gPlen,gPdet,gdetected,gsrcpattern,greplayw,greplaytof,gseeddata,gdebugdata,gprogress); break;
-		case(MCX_SRC_PENCILARRAY): mcx_main_loop<MCX_SRC_PENCILARRAY> <<<mcgrid,mcblock,sharedbuf>>>(gmedia,gfield,genergy,gPseed,gPpos,gPdir,gPlen,gPdet,gdetected,gsrcpattern,greplayw,greplaytof,gseeddata,gdebugdata,gprogress); break;
-		case(MCX_SRC_PATTERN3D): mcx_main_loop<MCX_SRC_PATTERN3D> <<<mcgrid,mcblock,sharedbuf>>>(gmedia,gfield,genergy,gPseed,gPpos,gPdir,gPlen,gPdet,gdetected,gsrcpattern,greplayw,greplaytof,gseeddata,gdebugdata,gprogress); break;
+		case(MCX_SRC_PENCIL): mcx_main_loop<MCX_SRC_PENCIL> <<<mcgrid,mcblock,sharedbuf>>>(gmedia,gfield,genergy,gPseed,gPpos,gPdir,gPlen,gPdet,gdetected,gsrcpattern,greplayw,greplaytof,greplaydetid,gseeddata,gdebugdata,gprogress); break;
+		case(MCX_SRC_ISOTROPIC): mcx_main_loop<MCX_SRC_ISOTROPIC> <<<mcgrid,mcblock,sharedbuf>>>(gmedia,gfield,genergy,gPseed,gPpos,gPdir,gPlen,gPdet,gdetected,gsrcpattern,greplayw,greplaytof,greplaydetid,gseeddata,gdebugdata,gprogress); break;
+		case(MCX_SRC_CONE): mcx_main_loop<MCX_SRC_CONE> <<<mcgrid,mcblock,sharedbuf>>>(gmedia,gfield,genergy,gPseed,gPpos,gPdir,gPlen,gPdet,gdetected,gsrcpattern,greplayw,greplaytof,greplaydetid,gseeddata,gdebugdata,gprogress); break;
+		case(MCX_SRC_GAUSSIAN): mcx_main_loop<MCX_SRC_GAUSSIAN> <<<mcgrid,mcblock,sharedbuf>>>(gmedia,gfield,genergy,gPseed,gPpos,gPdir,gPlen,gPdet,gdetected,gsrcpattern,greplayw,greplaytof,greplaydetid,gseeddata,gdebugdata,gprogress); break;
+		case(MCX_SRC_PLANAR): mcx_main_loop<MCX_SRC_PLANAR> <<<mcgrid,mcblock,sharedbuf>>>(gmedia,gfield,genergy,gPseed,gPpos,gPdir,gPlen,gPdet,gdetected,gsrcpattern,greplayw,greplaytof,greplaydetid,gseeddata,gdebugdata,gprogress); break;
+		case(MCX_SRC_PATTERN): mcx_main_loop<MCX_SRC_PATTERN> <<<mcgrid,mcblock,sharedbuf>>>(gmedia,gfield,genergy,gPseed,gPpos,gPdir,gPlen,gPdet,gdetected,gsrcpattern,greplayw,greplaytof,greplaydetid,gseeddata,gdebugdata,gprogress); break;
+		case(MCX_SRC_FOURIER): mcx_main_loop<MCX_SRC_FOURIER> <<<mcgrid,mcblock,sharedbuf>>>(gmedia,gfield,genergy,gPseed,gPpos,gPdir,gPlen,gPdet,gdetected,gsrcpattern,greplayw,greplaytof,greplaydetid,gseeddata,gdebugdata,gprogress); break;
+		case(MCX_SRC_ARCSINE): mcx_main_loop<MCX_SRC_ARCSINE> <<<mcgrid,mcblock,sharedbuf>>>(gmedia,gfield,genergy,gPseed,gPpos,gPdir,gPlen,gPdet,gdetected,gsrcpattern,greplayw,greplaytof,greplaydetid,gseeddata,gdebugdata,gprogress); break;
+		case(MCX_SRC_DISK): mcx_main_loop<MCX_SRC_DISK> <<<mcgrid,mcblock,sharedbuf>>>(gmedia,gfield,genergy,gPseed,gPpos,gPdir,gPlen,gPdet,gdetected,gsrcpattern,greplayw,greplaytof,greplaydetid,gseeddata,gdebugdata,gprogress); break;
+		case(MCX_SRC_FOURIERX): mcx_main_loop<MCX_SRC_FOURIERX> <<<mcgrid,mcblock,sharedbuf>>>(gmedia,gfield,genergy,gPseed,gPpos,gPdir,gPlen,gPdet,gdetected,gsrcpattern,greplayw,greplaytof,greplaydetid,gseeddata,gdebugdata,gprogress); break;
+		case(MCX_SRC_FOURIERX2D): mcx_main_loop<MCX_SRC_FOURIERX2D> <<<mcgrid,mcblock,sharedbuf>>>(gmedia,gfield,genergy,gPseed,gPpos,gPdir,gPlen,gPdet,gdetected,gsrcpattern,greplayw,greplaytof,greplaydetid,gseeddata,gdebugdata,gprogress); break;
+		case(MCX_SRC_ZGAUSSIAN): mcx_main_loop<MCX_SRC_ZGAUSSIAN> <<<mcgrid,mcblock,sharedbuf>>>(gmedia,gfield,genergy,gPseed,gPpos,gPdir,gPlen,gPdet,gdetected,gsrcpattern,greplayw,greplaytof,greplaydetid,gseeddata,gdebugdata,gprogress); break;
+		case(MCX_SRC_LINE): mcx_main_loop<MCX_SRC_LINE> <<<mcgrid,mcblock,sharedbuf>>>(gmedia,gfield,genergy,gPseed,gPpos,gPdir,gPlen,gPdet,gdetected,gsrcpattern,greplayw,greplaytof,greplaydetid,gseeddata,gdebugdata,gprogress); break;
+		case(MCX_SRC_SLIT): mcx_main_loop<MCX_SRC_SLIT> <<<mcgrid,mcblock,sharedbuf>>>(gmedia,gfield,genergy,gPseed,gPpos,gPdir,gPlen,gPdet,gdetected,gsrcpattern,greplayw,greplaytof,greplaydetid,gseeddata,gdebugdata,gprogress); break;
+		case(MCX_SRC_PENCILARRAY): mcx_main_loop<MCX_SRC_PENCILARRAY> <<<mcgrid,mcblock,sharedbuf>>>(gmedia,gfield,genergy,gPseed,gPpos,gPdir,gPlen,gPdet,gdetected,gsrcpattern,greplayw,greplaytof,greplaydetid,gseeddata,gdebugdata,gprogress); break;
+		case(MCX_SRC_PATTERN3D): mcx_main_loop<MCX_SRC_PATTERN3D> <<<mcgrid,mcblock,sharedbuf>>>(gmedia,gfield,genergy,gPseed,gPpos,gPdir,gPlen,gPdet,gdetected,gsrcpattern,greplayw,greplaytof,greplaydetid,gseeddata,gdebugdata,gprogress); break;
 	   }
 
 #pragma omp master
@@ -1961,6 +2011,13 @@ void mcx_run_simulation(Config *cfg,GPUInfo *gpu){
 #pragma omp critical
 {
 	       if(debugrec>0){
+		   if(debugrec>cfg->maxdetphoton){
+			MCX_FPRINTF(cfg->flog,"WARNING: the saved trajectory positions (%d) \
+are more than what your have specified (%d), please use the --maxjumpdebug option to specify a greater number\n"
+                           ,debugrec,cfg->maxjumpdebug);
+		   }else{
+			MCX_FPRINTF(cfg->flog,"saved %ud trajectory positions, total: %d\t",debugrec,cfg->maxjumpdebug+debugrec);
+		   }
                    debugrec=min(debugrec,cfg->maxjumpdebug);
 	           cfg->exportdebugdata=(float*)realloc(cfg->exportdebugdata,(cfg->debugdatalen+debugrec)*debuglen*sizeof(float));
                    CUDA_ASSERT(cudaMemcpy(cfg->exportdebugdata+cfg->debugdatalen, gdebugdata,sizeof(float)*debuglen*debugrec,cudaMemcpyDeviceToHost));
@@ -1979,7 +2036,7 @@ void mcx_run_simulation(Config *cfg,GPUInfo *gpu){
 is more than what your have specified (%d), please use the -H option to specify a greater number\t"
                            ,detected,cfg->maxdetphoton);
 		}else{
-			MCX_FPRINTF(cfg->flog,"detected %d photons, total: %d\t",detected,cfg->detectedcount+detected);
+			MCX_FPRINTF(cfg->flog,"detected %d photons, total: %ld\t",detected,cfg->detectedcount+detected);
 		}
 #pragma omp atomic
                 cfg->his.detected+=detected;
@@ -2002,10 +2059,14 @@ is more than what your have specified (%d), please use the -H option to specify 
 
 	   //handling the 2pt distributions
            if(cfg->issave2pt){
-               CUDA_ASSERT(cudaMemcpy(field, gfield,sizeof(float) *dimxyz*gpu[gpuid].maxgate,cudaMemcpyDeviceToHost));
+	       float *rawfield=(float*)malloc(sizeof(float)*fieldlen*2);
+               CUDA_ASSERT(cudaMemcpy(rawfield, gfield,sizeof(float)*fieldlen*2,cudaMemcpyDeviceToHost));
                MCX_FPRINTF(cfg->flog,"transfer complete:\t%d ms\n",GetTimeMillis()-tic);  fflush(cfg->flog);
+	       for(i=0;i<(int)fieldlen;i++)  //accumulate field, can be done in the GPU
+	           field[i]=rawfield[i]+rawfield[i+fieldlen];
+	       free(rawfield);
 
-               if(cfg->respin>1){
+               if(ABS(cfg->respin)>1){
                    for(i=0;i<(int)fieldlen;i++)  //accumulate field, can be done in the GPU
                       field[fieldlen+i]+=field[i];
                }
@@ -2016,7 +2077,7 @@ is more than what your have specified (%d), please use the -H option to specify 
        if(cfg->runtime<toc)
            cfg->runtime=toc;
 
-       if(cfg->respin>1)  //copy the accumulated fields back
+       if(ABS(cfg->respin)>1)  //copy the accumulated fields back
            memcpy(field,field+fieldlen,sizeof(float)*fieldlen);
 
        if(cfg->isnormalized){
@@ -2050,6 +2111,7 @@ is more than what your have specified (%d), please use the -H option to specify 
 {
      if(cfg->isnormalized){
 	   float scale=1.f;
+	   int isnormalized=0;
            MCX_FPRINTF(cfg->flog,"normalizing raw data ...\t");
            cfg->energyabs+=cfg->energytot-cfg->energyesc;
            if(cfg->outputtype==otFlux || cfg->outputtype==otFluence){
@@ -2060,16 +2122,33 @@ is more than what your have specified (%d), please use the -H option to specify 
 	   }else if(cfg->outputtype==otEnergy)
 	       scale=1.f/cfg->energytot;
 	   else if(cfg->outputtype==otJacobian || cfg->outputtype==otWP){
-	       scale=0.f;
-	       for(i=0;i<cfg->nphoton;i++)
-	           scale+=cfg->replay.weight[i];
-	       if(scale>0.f)
-	           scale=cfg->unitinmm/scale;
+	       if(cfg->seed==SEED_FROM_FILE && cfg->replaydet==-1){
+                   int detid;
+		   for(detid=1;detid<=(int)cfg->detnum;detid++){
+	               scale=0.f; // the cfg->normalizer and cfg.his.normalizer are inaccurate in this case, but this is ok
+		       for(size_t i=0;i<cfg->nphoton;i++)
+		           if(cfg->replay.detid[i]==detid)
+	                       scale+=cfg->replay.weight[i];
+	               if(scale>0.f)
+	                   scale=cfg->unitinmm/scale;
+                       MCX_FPRINTF(cfg->flog,"normalization factor for detector %d alpha=%f\n",detid, scale);  fflush(cfg->flog);
+                       mcx_normalize(cfg->exportfield+(detid-1)*dimxyz*gpu[gpuid].maxgate,scale,dimxyz*gpu[gpuid].maxgate,cfg->isnormalized);
+		   }
+		   isnormalized=1;
+	       }else{
+	           scale=0.f;
+	           for(size_t i=0;i<cfg->nphoton;i++)
+	               scale+=cfg->replay.weight[i];
+	           if(scale>0.f)
+                       scale=cfg->unitinmm/scale;
+	       }
            }
          cfg->normalizer=scale;
 	 cfg->his.normalizer=scale;
-	 MCX_FPRINTF(cfg->flog,"normalization factor alpha=%f\n",scale);  fflush(cfg->flog);
-         mcx_normalize(cfg->exportfield,scale,fieldlen,cfg->isnormalized);
+         if(!isnormalized){
+             MCX_FPRINTF(cfg->flog,"normalization factor alpha=%f\n",scale);  fflush(cfg->flog);
+	     mcx_normalize(cfg->exportfield,scale,fieldlen,cfg->isnormalized);
+	 }
      }
      if(cfg->issave2pt && cfg->parentid==mpStandalone){
          MCX_FPRINTF(cfg->flog,"saving data to file ... %lu %d\t",fieldlen,gpu[gpuid].maxgate);
@@ -2086,6 +2165,13 @@ is more than what your have specified (%d), please use the -H option to specify 
 
          cfg->his.detected=cfg->detectedcount;
          mcx_savedetphoton(cfg->exportdetected,cfg->seeddata,cfg->detectedcount,0,cfg);
+     }
+     if((cfg->debuglevel & MCX_DEBUG_MOVE) && cfg->parentid==mpStandalone && cfg->exportdebugdata){
+         cfg->his.colcount=MCX_DEBUG_REC_LEN;
+         cfg->his.savedphoton=cfg->debugdatalen;
+	 cfg->his.totalphoton=cfg->nphoton;
+         cfg->his.detected=0;
+         mcx_savedetphoton(cfg->exportdebugdata,NULL,cfg->debugdatalen,0,cfg);
      }
 }
 #pragma omp barrier
@@ -2121,8 +2207,9 @@ is more than what your have specified (%d), please use the -H option to specify 
             Ppos[i].x,Ppos[i].y,Ppos[i].z,Plen[i].y,Plen[i].x,(float)Pseed[i]);
      }
      // total energy here equals total simulated photons+unfinished photons for all threads
-     MCX_FPRINTF(cfg->flog,"simulated %d photons (%d) with %d threads (repeat x%d)\nMCX simulation speed: %.2f photon/ms\n",
-             cfg->nphoton,cfg->nphoton,gpu[gpuid].autothread,cfg->respin,(double)cfg->nphoton/max(1,cfg->runtime)); fflush(cfg->flog);
+     MCX_FPRINTF(cfg->flog,"simulated %ld photons (%ld) with %d threads (repeat x%d)\nMCX simulation speed: %.2f photon/ms\n",
+             (long int)cfg->nphoton*((cfg->respin>1) ? (cfg->respin) : 1),(long int)cfg->nphoton*((cfg->respin>1) ? (cfg->respin) : 1),
+	     gpu[gpuid].autothread,ABS(cfg->respin),(double)cfg->nphoton*((cfg->respin>1) ? (cfg->respin) : 1)/max(1,cfg->runtime)); fflush(cfg->flog);
      MCX_FPRINTF(cfg->flog,"total simulated energy: %.2f\tabsorbed: %5.5f%%\n(loss due to initial specular reflection is excluded in the total)\n",
              cfg->energytot,(cfg->energytot-cfg->energyesc)/cfg->energytot*100.f);fflush(cfg->flog);
      fflush(cfg->flog);
@@ -2149,6 +2236,8 @@ is more than what your have specified (%d), please use the -H option to specify 
              CUDA_ASSERT(cudaFree(greplayw));
          if(cfg->replay.tof)
              CUDA_ASSERT(cudaFree(greplaytof));
+         if(cfg->replay.detid)
+             CUDA_ASSERT(cudaFree(greplaydetid));
      }
 
      CUDA_ASSERT(cudaDeviceReset());

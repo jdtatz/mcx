@@ -9,16 +9,26 @@ function varargout=mcxlab(varargin)
 %
 % Format:
 %    [fluence,detphoton,vol,seed,trajectory]=mcxlab(cfg);
+%       or
+%    [fluence,detphoton,vol,seed,trajectory]=mcxlab(cfg, option);
 %
 % Input:
 %    cfg: a struct, or struct array. Each element of cfg defines 
 %         the parameters associated with a simulation. 
+%    option: (optional), options is a string, specifying additional options
+%         option='preview': this plots the domain configuration using mcxpreview(cfg)
+%         option='mcxcl':   this calls mcxcl.mex* instead of mcx.mex* on non-NVIDIA hardware
 %
-%    It may contain the following fields:
+%
+%    cfg may contain the following fields:
 %
 %== Required ==
 %     *cfg.nphoton:    the total number of photons to be simulated (integer)
-%     *cfg.vol:        a 3D array specifying the media index in the domain
+%                      maximum supported value is 2^63-1
+%     *cfg.vol:        a 3D array specifying the media index in the domain.
+%                      2D simulations are supported if cfg.vol has a singleton
+%                      dimension (in x or y); srcpos/srcdir must belong to
+%                      the 2D plane in such case.
 %     *cfg.prop:       an N by 4 array, each row specifies [mua, mus, g, n] in order.
 %                      the first row corresponds to medium type 0 which is 
 %                      typically [0 0 1 1]. The second row is type 1, and so on.
@@ -36,14 +46,18 @@ function varargout=mcxlab(varargin)
 %                      if set to a uint8 array, the binary data in each column is used 
 %                      to seed a photon (i.e. the "replay" mode)
 %      cfg.respin:     repeat simulation for the given time (integer) [1]
+%                      if negative, divide the total photon number into respin subsets
 %      cfg.isreflect:  [1]-consider refractive index mismatch, 0-matched index
 %      cfg.isrefint:   1-ref. index mismatch at inner boundaries, [0]-matched index
 %      cfg.isnormalized:[1]-normalize the output fluence to unitary source, 0-no reflection
+%      cfg.isspecular: 1-calculate specular reflection if source is outside, [0] no specular reflection
 %      cfg.maxgate:    the num of time-gates per simulation
 %      cfg.minenergy:  terminate photon when weight less than this level (float) [0.0]
 %      cfg.unitinmm:   defines the length unit for a grid edge length [1.0]
 %      cfg.shapes:     a JSON string for additional shapes in the grid
-%      cfg.reseedlimit:number of scattering events before reseeding RNG
+%      cfg.gscatter:   after a photon completes the specified number of
+%                      scattering events, mcx then ignores anisotropy g
+%                      and only performs isotropic scattering for speed [1e9]
 %      cfg.faststep: when set to 1, this option enables the legacy 1mm fix-step photon
 %                    advancing strategy; although this method is fast, the results were
 %                    found inaccurate, and therefore is not recommended. Setting to 0
@@ -117,6 +131,10 @@ function varargout=mcxlab(varargin)
 %      cfg.{srcparam1,srcparam2}: 1x4 vectors, see cfg.srctype for details
 %      cfg.srcpattern: see cfg.srctype for details
 %      cfg.issrcfrom0: 1-first voxel is [0 0 0], [0]- first voxel is [1 1 1]
+%      cfg.replaydet:  only works when cfg.outputtype is 'jacobian', 'wl', 'nscat', or 'wp' and cfg.seed is an array
+%                      -1 replay all detectors and save in separate volumes (output has 5 dimensions)
+%                       0 replay all detectors and sum all Jacobians into one volume
+%                       a positive number: the index of the detector to replay and obtain Jacobians
 %      cfg.voidtime:   for wide-field sources, [1]-start timer at launch, or 0-when entering 
 %                      the first non-zero voxel
 %
@@ -137,7 +155,7 @@ function varargout=mcxlab(varargin)
 %                    'R':  debug RNG, output fluence.data is filled with 0-1 random numbers
 %                    'M':  return photon trajectory data as the 5th output
 %                    'P':  show progress bar
-%      cfg.maxjumpdebug: [1000000|int] when trajectory is requested in the output, 
+%      cfg.maxjumpdebug: [10000000|int] when trajectory is requested in the output, 
 %                     use this parameter to set the maximum position stored. By default,
 %                     only the first 1e6 positions are stored.
 %
@@ -156,6 +174,7 @@ function varargout=mcxlab(varargin)
 %              detphoton.ppath: cummulative path lengths in each medium (partial pathlength)
 %                   one need to multiply cfg.unitinmm with ppath to convert it to mm.
 %              detphoton.p or .v: exit position and direction, when cfg.issaveexit=1
+%              detphoton.prop: optical properties, a copy of cfg.prop
 %              detphoton.data: a concatenated and transposed array in the order of
 %                    [detid nscat ppath p v]'
 %              "data" is the is the only subfield in all MCXLAB before 2018
@@ -166,53 +185,78 @@ function varargout=mcxlab(varargin)
 %            of seed equals that of detphoton.
 %      trajectory: (optional), if given, mcxlab returns the trajectory data for
 %            each simulated photon. The output has 6 rows, the meanings are 
-%               1:    index of the photon packet
-%		2-4:  x/y/z/ of each trajectory position
-%		5:    current photon packet weight
-%		6:    reserved
-%            By default, mcxlab only records the first 1e6 positions along all
+%               id:  1:    index of the photon packet
+%               pos: 2-4:  x/y/z/ of each trajectory position
+%                    5:    current photon packet weight
+%                    6:    reserved
+%            By default, mcxlab only records the first 1e7 positions along all
 %            simulated photons; change cfg.maxjumpdebug to define a different limit.
 %
 %
 % Example:
+%      % define the simulation using a 
 %      cfg.nphoton=1e7;
 %      cfg.vol=uint8(ones(60,60,60));
+%      cfg.vol(20:40,20:40,10:30)=2;    % add an inclusion
+%      cfg.prop=[0 0 1 1;0.005 1 0 1.37; 0.2 10 0.9 1.37]; % [mua,mus,g,n]
+%      cfg.issrcfrom0=1;
 %      cfg.srcpos=[30 30 1];
 %      cfg.srcdir=[0 0 1];
+%      cfg.detpos=[30 20 1 1;30 40 1 1;20 30 1 1;40 30 1 1];
+%      cfg.vol(:,:,1)=0;   % pad a layer of 0s to get diffuse reflectance
+%      cfg.issaveref=1;
 %      cfg.gpuid=1;
 %      cfg.autopilot=1;
-%      cfg.prop=[0 0 1 1;0.005 1 0 1.37];
 %      cfg.tstart=0;
 %      cfg.tend=5e-9;
 %      cfg.tstep=5e-10;
 %      % calculate the fluence distribution with the given config
-%      fluence=mcxlab(cfg);
+%      [fluence,detpt,vol,seeds,traj]=mcxlab(cfg);
 %
-%      cfgs(1)=cfg;
-%      cfgs(2)=cfg;
-%      cfgs(1).isreflect=0;
-%      cfgs(2).isreflect=1;
-%      cfgs(2).issavedet=1;
-%      cfgs(2).detpos=[30 20 1 1;30 40 1 1;20 30 1 1;40 30 1 1];
-%      % calculate the fluence and partial path lengths for the two configurations
-%      [fluences,detps]=mcxlab(cfgs);
-%
-%      imagesc(squeeze(log(fluences(1).data(:,30,:,1)))-squeeze(log(fluences(2).data(:,30,:,1))));
-%
+%      % integrate time-axis (4th dimension) to get CW solutions
+%      cwfluence=sum(fluence.data,4);  % fluence rate
+%      cwdref=sum(fluence.dref,4);     % diffuse reflectance
+%      % plot configuration and results
+%      subplot(231);
+%      mcxpreview(cfg);title('domain preview');
+%      subplot(232);
+%      imagesc(squeeze(log(cwfluence(:,30,:))));title('fluence at y=30');
+%      subplot(233);
+%      hist(detpt.ppath(:,1),50); title('partial path tissue#1');
+%      subplot(234);
+%      plot(squeeze(fluence.data(30,30,30,:)),'-o');title('TPSF at [30,30,30]');
+%      subplot(235);
+%      newtraj=mcxplotphotons(traj);title('photon trajectories')
+%      subplot(236);
+%      imagesc(squeeze(log(cwdref(:,:,1))));title('diffuse refle. at z=1');
 %
 % This function is part of Monte Carlo eXtreme (MCX) URL: http://mcx.space
 %
 % License: GNU General Public License version 3, please read LICENSE.txt for details
 %
 
+try
+    defaultocl=evalin('base','USE_MCXCL');
+catch
+    defaultocl=0;
+end
+
+useopencl=defaultocl;
+
 if(nargin==2 && ischar(varargin{2}))
     if(strcmp(varargin{2},'preview'))
         [varargout{1:nargout}]=mcxpreview(varargin{1});
-	return;
+	    return;
+    elseif(strcmp(varargin{2},'opencl'))
+        useopencl=1;
     end
 end
 
-[varargout{1:nargout}]=mcx(varargin{:});
+if(useopencl==0)
+    [varargout{1:nargout}]=mcx(varargin{1});
+else
+    [varargout{1:nargout}]=mcxcl(varargin{1});
+end
 
 if(nargin==0)
     return;
@@ -221,7 +265,7 @@ end
 cfg=varargin{1};
 
 if(nargout>=2)
-    
+
     for i=1:length(varargout{2})
         if(~isfield(cfg(i),'issaveexit') || cfg(i).issaveexit~=2)
             medianum=size(cfg(i).prop,1)-1;
@@ -230,13 +274,17 @@ if(nargout>=2)
                 continue;
             end
             newdetp.detid=int32(detp(1,:))';
-            newdetp.nscat=int32(detp(2,:))';    % 1st medianum block is num of scattering
+            newdetp.nscat=int32(detp(2,:))';    % 2nd column is the total num of scattering
             newdetp.ppath=detp(3:2+medianum,:)';% 2nd medianum block is partial path
+            if(isfield(cfg(i),'ismomentum') && cfg(i).ismomentum)
+                newdetp.mom=detp(medianum+3:2*medianum+2,:)'; % 3rd medianum block is the momentum transfer
+            end
             if(isfield(cfg(i),'issaveexit') && cfg(i).issaveexit)
-                newdetp.p=detp(end-5:end-3,:)';             %columns 7-5 from the right store the exit positions*/
+                newdetp.p=detp(end-5:end-3,:)';      %columns 7-5 from the right store the exit positions*/
                 newdetp.v=detp(end-2:end,:)';	     %columns 4-2 from the right store the exit dirs*/
             end
             % newdetp.w0=detp(end,:)';  % last column is the initial packet weight
+            newdetp.prop=cfg(i).prop;
             newdetp.data=detp;      % enable this line for compatibility
             newdetpstruct(i)=newdetp;
         else
@@ -245,5 +293,23 @@ if(nargout>=2)
     end
     if(exist('newdetpstruct','var'))
         varargout{2}=newdetpstruct;
+    end
+
+    if(nargout>=5)
+        for i=1:length(varargout{5})
+            data=varargout{5}.data;
+            if(isempty(data))
+               continue;
+            end
+            traj.pos=data(2:4,:).';
+            traj.id=typecast(data(1,:),'uint32').';
+            [traj.id,idx]=sort(traj.id);
+            traj.pos=traj.pos(idx,:);
+            traj.data=[single(traj.id)' ; data(2:end,idx)];
+            newtraj(i)=traj;
+        end
+        if(exist('newtraj','var'))
+            varargout{5}=newtraj;
+        end
     end
 end
