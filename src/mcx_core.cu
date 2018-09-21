@@ -179,7 +179,11 @@ __device__ inline uint finddetector(MCXpos *p0){
       	if((gproperty[i].x-p0->x)*(gproperty[i].x-p0->x)+
 	   (gproperty[i].y-p0->y)*(gproperty[i].y-p0->y)+
 	   (gproperty[i].z-p0->z)*(gproperty[i].z-p0->z) < gproperty[i].w*gproperty[i].w){
+#ifdef EXCLUSIONARY_DETECTORS
 	        return (gproperty[i].w >= 0) ? i-gcfg->maxmedia : 0;
+#else
+	        return i-gcfg->maxmedia;
+#endif
 	   }
       }
       return 0;
