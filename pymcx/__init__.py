@@ -54,6 +54,14 @@ _run_simulation.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.POINTER(cty
 
 
 
+class MCXRunException(Exception):
+    def __init__(self, stdout, stderr, err, flag):
+        self.stdout, self.stderr, self.err, self.flag = stdout, stderr, err, flag
+        msg = hold_stderr.pop() if flag > 0 else (err.value.decode('ASCII') if err.value else "Unknown Error")
+        super(MCXRunException, self).__init__('RunTime error: "{}"'.format(msg))
+
+
+
 class MCX(object):
     def __init__(self, **kws):
         super(MCX, self).__setattr__('_cfg_ptr', _create_config())
@@ -128,9 +136,7 @@ class MCX(object):
             with _grab_fstream(sys.__stdout__) as hold_stdout:
                 flag = _run_simulation(self._cfg_ptr, nout, ctypes.byref(err))
         if flag != 0:
-            msg = hold_stderr.pop() if flag > 0 else (err.value.decode('ASCII') if err.value else "Unknown Error")
-            excep = 'RunTime error: "{}"'.format(msg)
-            raise Exception(excep)
+            raise MCXRunException(hold_stdout.pop(), hold_stderr.pop(), err, flag)
         basic_fields = ["runtime", "nphoton", "energytot", "energyabs", "normalizer", "workload"]
         result = {field: self.get_field(field, share_memory) for field in basic_fields}
         if nout >= 1:
