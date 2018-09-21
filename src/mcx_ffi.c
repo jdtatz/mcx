@@ -397,12 +397,6 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
 }
 
 void initialize_output(Config *cfg, int nout) {
-    cfg->issave2pt = (nout >= 1);  /** save fluence rate to the 1st output if present */
-    cfg->issavedet = (nout >= 2);  /** save detected photon data to the 2nd output if present */
-    cfg->issaveseed = (nout >= 4); /** save detected photon seeds to the 4th output if present */
-#if defined(USE_MT_RAND)
-    cfg->issaveseed = 0;
-#endif
     if (nout >= 1) {
         if(cfg->exportfield) free(cfg->exportfield);
         int fieldlen = cfg->dim.x*cfg->dim.y*cfg->dim.z*(int)((cfg->tend - cfg->tstart) / cfg->tstep + 0.5);
@@ -544,6 +538,12 @@ int mcx_wrapped_run_simulation(Config *cfg, int nout, char**err) {
         memcpy(cfg->deviceid, temp_gpu_workaround, MAX_DEVICE);
         return -1;
     }
+    cfg->issave2pt = (nout >= 1);  /** save fluence rate to the 1st output if present */
+    cfg->issavedet = (nout >= 2);  /** save detected photon data to the 2nd output if present */
+    cfg->issaveseed = (nout >= 4); /** save detected photon seeds to the 4th output if present */
+#if defined(USE_MT_RAND)
+    cfg->issaveseed = 0;
+#endif
     if(mcx_validateconfig(cfg, err, 0, NULL, NULL)) {
         mcx_cleargpuinfo(&gpuinfo);
         memcpy(cfg->deviceid, temp_gpu_workaround, MAX_DEVICE);
