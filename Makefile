@@ -5,17 +5,14 @@
 ############################################################
 
 PKGNAME=mcx
-LIBNAME=libmcx
 VERSION=1.0.0
 SOURCE=src
 GUI=mcxstudio
 
-all: bin/$(PKGNAME) lib/$(LIBNAME) bin/$(GUI) mex deb rpm
+all: bin/$(PKGNAME) bin/$(GUI) mex deb rpm
 
 bin/$(PKGNAME):
 	-$(MAKE) -C $(SOURCE) static
-lib/$(LIBNAME):
-	-$(MAKE) -C $(SOURCE) lib
 bin/$(GUI):
 	-$(MAKE) -C $(GUI)
 	-$(COPY) -a $(GUI)/debug/$(GUI) bin
@@ -32,12 +29,10 @@ rpm:
 	-package/mcxpkg/mcxrpmcopy.sh  $(PKGNAME) $(VERSION)
 	cd rpmroot && tar zcvf $(PKGNAME)-$(VERSION).tar.gz $(PKGNAME) ; \
 	rpmbuild --define="_topdir rpmroot/rpm" -ta $(PKGNAME)-$(VERSION).tar.gz
-pymcx: lib/$(LIBNAME)
-	-cp lib/$(LIBNAME).so pymcx/
-	-python3 setup.py bdist_wheel
 clean:
 	-$(MAKE) -C $(SOURCE) clean
 	-$(MAKE) -C $(GUI) clean
 	-rm -rf debian rpmroot pkg.info $(PKGNAME)-$(VERSION).deb $(PKGNAME)-$(VERSION)*.rpm
 
 .DEFAULT_GOAL := bin/$(PKGNAME)
+

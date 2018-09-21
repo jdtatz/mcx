@@ -21,9 +21,7 @@ MEX=mex
 AR=$(CC)
 
 BINARY=mcx
-SLIB=libmcx.so
 OUTPUT_DIR=$(MCXDIR)/bin
-OUTPUT_LIBDIR=$(MCXDIR)/lib
 
 DOXY       := doxygen
 DOCDIR     := $(MCXDIR)/doc
@@ -62,7 +60,7 @@ CPPOPT=-g -Wall -std=c99 # -DUSE_OS_TIMER
 OBJSUFFIX=.o
 EXESUFFIX=
 
-FILES=mcx_core mcx_utils mcx_shapes mcx_ffi tictoc mcextreme cjson/cJSON
+FILES=mcx_core mcx_utils mcx_shapes tictoc mcextreme cjson/cJSON
 
 ifeq ($(findstring CYGWIN,$(PLATFORM)), CYGWIN)
   CC=nvcc
@@ -86,8 +84,8 @@ else ifeq ($(findstring Darwin,$(PLATFORM)), Darwin)
   CUDA_STATIC=--cudart static
   CPPOPT+=$(OMP)
 else
-  CPPOPT+=$(OMP) $(DLLFLAG)
-  CUCCOPT+=-Xcompiler $(OMP) --compiler-options "$(DLLFLAG)"
+  CPPOPT+=$(OMP)
+  CUCCOPT+=-Xcompiler $(OMP)
   ifeq ($(findstring x86_64,$(ARCH)), x86_64)
      CPPOPT +=-m64
      CUCCOPT +=-m64
@@ -144,14 +142,12 @@ detbox mexbox octbox: CUCCOPT+=-DMCX_TARGET_NAME='"Cached Detective MCX"'
 fermi fermimex fermioct: CUCCOPT+=-DMCX_TARGET_NAME='"Fermi MCX"'
 det detbox: BINARY:=$(BINARY)_det
 logbox detbox:          BINARY:=$(BINARY)_cached
-all xorfermi maxwell pascal volta half:    fermi
+all xorfermi maxwell pascal half:    fermi
 maxwell:    CUGENCODE=-arch=compute_20 -code=sm_20 -code=sm_30 -code=sm_35 -code=sm_50 -code=sm_52
 pascal:     CUGENCODE=-arch=compute_20 -code=sm_20 -code=sm_30 -code=sm_35 -code=sm_50 -code=sm_52 -code=sm_61
-volta:      CUGENCODE=-gencode arch=compute_30,code=sm_30 -gencode arch=compute_35,code=sm_35 -gencode arch=compute_37,code=sm_37 -gencode arch=compute_50,code=sm_50 -gencode arch=compute_52,code=sm_52 -gencode arch=compute_60,code=sm_60 -gencode arch=compute_61,code=sm_61 -gencode arch=compute_70,code=sm_70
 xormax:     maxwell
 xorpas:     pascal
-xorvol:     volta
-xorfermi xormax xorpas xorvol:     CUCCOPT+=-DUSE_XORSHIFT128P_RAND
+xorfermi xormax xorpas:     CUCCOPT+=-DUSE_XORSHIFT128P_RAND
 half:       CUCCOPT+=-DUSE_HALF
 half:       CUGENCODE=-arch=compute_60
 
@@ -160,12 +156,6 @@ static:     xorfermi
 static:     AR=nvcc
 static:     CUOMPLINK=-Xcompiler
 static:     LINKOPT=$(CUDA_STATIC)
-
-lib:     xorvol
-lib:     AR=nvcc
-lib:     CUOMPLINK=-Xcompiler
-lib:     LINKOPT=$(CUDA_STATIC)
-
 
 mexbox fermimex:        AR=$(MEX)
 mexbox fermimex:        LINKOPT+= CXXFLAGS='$$CXXFLAGS -g -DSAVE_DETECTORS -DUSE_CACHEBOX -DMCX_CONTAINER $(OMP) $(MEXCCOPT) $(USERCCOPT)' LDFLAGS='-L$$TMW_ROOT$$MATLABROOT/sys/os/$$ARCH $$LDFLAGS $(OMP) $(USERLINKOPT)' -liomp5
@@ -197,11 +187,10 @@ doc: makedocdir
 OBJS      := $(addsuffix $(OBJSUFFIX), $(FILES))
 
 all xor xoro posix fast log logfast racing xoratomic logatomic xorbox logbox debugxor debuglog \
- det detbox fermi mex oct mexbox octbox fermimex fermioct: cudasdk $(OUTPUT_DIR)/$(BINARY) $(OUTPUT_LIBDIR)/$(SLIB)
+ det detbox fermi mex oct mexbox octbox fermimex fermioct: cudasdk $(OUTPUT_DIR)/$(BINARY)
 
 makedirs:
 	@if test ! -d $(OUTPUT_DIR); then $(MKDIR) $(OUTPUT_DIR); fi
-	@if test ! -d $(OUTPUT_LIBDIR); then $(MKDIR) $(OUTPUT_LIBDIR); fi
 
 makedocdir:
 	@if test ! -d $(DOCDIR); then $(MKDIR) $(DOCDIR); fi
@@ -210,10 +199,6 @@ $(OUTPUT_DIR)/$(BINARY): makedirs $(OBJS)
 $(OUTPUT_DIR)/$(BINARY): $(OBJS)
 	$(AR) $(OBJS) $(OUTPUTFLAG) $(OUTPUT_DIR)/$(BINARY) $(LINKOPT) $(USERLINKOPT)
 
-$(OUTPUT_LIBDIR)/$(SLIB): makedirs $(OBJS)
-$(OUTPUT_LIBDIR)/$(SLIB): $(OBJS)
-	$(AR) $(OBJS) -shared $(OUTPUTFLAG) $(OUTPUT_LIBDIR)/$(SLIB) $(LINKOPT) $(USERLINKOPT)
-
 %$(OBJSUFFIX): %.c
 	$(CC) $(INCLUDEDIRS) $(CPPOPT) -c -o $@  $<
 
@@ -221,10 +206,11 @@ $(OUTPUT_LIBDIR)/$(SLIB): $(OBJS)
 	$(CUDACC) -c $(CUCCOPT) -o $@  $<
 
 clean:
-	-rm -f $(OBJS) $(OUTPUT_DIR)/$(BINARY)$(EXESUFFIX) $(OUTPUT_DIR)/$(BINARY)_atomic$(EXESUFFIX) $(OUTPUT_DIR)/$(BINARY)_det$(EXESUFFIX) $(OUTPUT_LIBDIR)/$(SLIB)
+	-rm -f $(OBJS) $(OUTPUT_DIR)/$(BINARY)$(EXESUFFIX) $(OUTPUT_DIR)/$(BINARY)_atomic$(EXESUFFIX) $(OUTPUT_DIR)/$(BINARY)_det$(EXESUFFIX)
 cudasdk:
 	@if [ -z `which ${CUDACC}` ]; then \
 	   echo "Please first install CUDA SDK and add the path to nvcc to your PATH environment variable."; exit 1;\
 	fi
 
 .DEFAULT_GOAL := all
+
