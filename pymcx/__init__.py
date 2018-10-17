@@ -57,7 +57,7 @@ _run_simulation.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.POINTER(cty
 class MCXRunException(Exception):
     def __init__(self, stdout, stderr, err, flag):
         self.stdout, self.stderr, self.err, self.flag = stdout, stderr, err, flag
-        msg = hold_stderr.pop() if flag > 0 else (err.value.decode('ASCII') if err.value else "Unknown Error")
+        msg = stderr if flag > 0 else (err.value.decode('ASCII') if err.value else "Unknown Error")
         super(MCXRunException, self).__init__('RunTime error: "{}"'.format(msg))
 
 
