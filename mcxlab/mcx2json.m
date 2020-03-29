@@ -38,6 +38,7 @@ Optode.Source=copycfg(cfg,'srcdir',Optode.Source,'Dir');
 Optode.Source=copycfg(cfg,'srcparam1',Optode.Source,'Param1');
 Optode.Source=copycfg(cfg,'srcparam2',Optode.Source,'Param2');
 Optode.Source=copycfg(cfg,'srctype',Optode.Source,'Type');
+Optode.Source=copycfg(cfg,'srcnum',Optode.Source,'SrcNum');
 
 if(isfield(cfg,'detpos') && ~isempty(cfg.detpos))
     Optode.Detector=struct();
@@ -46,13 +47,13 @@ if(isfield(cfg,'detpos') && ~isempty(cfg.detpos))
         Optode.Detector={Optode.Detector};
     end
 end
-if(isfield(cfg,'pattern') && ~isempty(cfg.pattern))
-    Optode.Source.Pattern.Nx=size(cfg.pattern,1);
-    Optode.Source.Pattern.Ny=size(cfg.pattern,2);
-    Optode.Source.Pattern.Nz=size(cfg.pattern,3);
+if(isfield(cfg,'srcpattern') && ~isempty(cfg.srcpattern))
+    Optode.Source.Pattern.Nx=size(cfg.srcpattern,1);
+    Optode.Source.Pattern.Ny=size(cfg.srcpattern,2);
+    Optode.Source.Pattern.Nz=size(cfg.srcpattern,3);
     Optode.Source.Pattern.Data=[filestub '_pattern.bin'];
     fid=fopen(Optode.Source.Pattern.Data,'wb');
-    fwrite(fid,cfg.pattern,'float32');
+    fwrite(fid,cfg.srcpattern,'float32');
     fclose(fid);
 end
 
@@ -64,15 +65,46 @@ Domain=copycfg(cfg,'unitinmm',Domain,'LengthUnit');
 
 Domain.Media=cell2struct(num2cell(cfg.prop), {'mua','mus','g','n'} ,2)';
 
-if(isfield(cfg,'shapes') && ischar(cfg.shapedata))
-    Domain.VolumeFile=[filestub '_shapes.json'];
-    fid=fopen(Domain.VolumeFile,'wb');
-    fwrite(fid,cfg.shapedata,'uchar');
-    fclose(fid);
+if(isfield(cfg,'shapes') && ischar(cfg.shapes))
+    Shapes=loadjson(cfg.shapes);
+    Shapes=Shapes.Shapes;
 end
 
 if(isfield(cfg,'vol') && ~isempty(cfg.vol) && ~isfield(Domain,'VolumeFile'))
+    switch(class(cfg.vol))
+        case {'uint8','int8'}
+            Domain.MediaFormat='byte';
+            if(ndims(cfg.vol)==4 && size(cfg.vol,1)==4)
+                Domain.MediaFormat='asgn_byte';
+            end
+        case {'uint16','int16'}
+            Domain.MediaFormat='short';
+            if(ndims(cfg.vol)==4 && size(cfg.vol,1)==2)
+                Domain.MediaFormat='muamus_short';
+            end
+        case {'uint32','int32'}
+            Domain.MediaFormat='integer';
+        case {'single','double'}
+            if(isa(cfg.vol,'double'))
+                cfg.vol=single(cfg.vol);
+            end
+            if(all(mod(cfg.vol(:),1) == 0))
+                Domain.MediaFormat='integer';
+            elseif(ndims(cfg.vol)==4)
+                if(size(cfg.vol,1))==1
+                    Domain.MediaFormat='mua_float';
+                elseif(size(cfg.vol,1)==2)
+                    Domain.MediaFormat='muamus_float';
+                end
+            end
+        otherwise
+            error('cfg.vol has format that is not supported');
+    end
+
     Domain.Dim=size(cfg.vol);
+    if(length(Domain.Dim)==4)
+        Domain.Dim(1)=[];
+    end
     Domain.VolumeFile=[filestub '_vol.bin'];
     fid=fopen(Domain.VolumeFile,'wb');
     fwrite(fid,cfg.vol,class(cfg.vol));
@@ -108,6 +140,9 @@ Forward.Dt=cfg.tstep;
 %% assemble the complete input, save to a JSON or UBJSON input file
 
 mcxsession=struct('Session', Session, 'Forward', Forward, 'Optode',Optode, 'Domain', Domain);
+if(exist('Shapes','var'))
+    mcxsession.Shapes=Shapes;
+end
 if(strcmp(fext,'ubj'))
     saveubjson('',mcxsession,[filestub,'.ubj']);
 else

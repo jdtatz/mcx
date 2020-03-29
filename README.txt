@@ -5,13 +5,14 @@
 
 Author:  Qianqian Fang <q.fang at neu.edu>
 License: GNU General Public License version 3 (GPLv3)
-Version: 1.0 Final (v2018, Dark Matter - Final)
+Version: 1.4.9 (v2019.4, Ether Dome - RC1)
 Website: http://mcx.space
 
 ---------------------------------------------------------------------
 
 Table of Content:
 
+O.    What's New
 I.    Introduction
 II.   Requirement and Installation
 III.  Running Simulations
@@ -23,6 +24,51 @@ VIII. Interpreting the Outputs
 IX.   Best practices guide
 X.    Acknowledgement
 XI.   Reference
+
+
+---------------------------------------------------------------------
+
+O.    What's New
+
+In MCX v2019.4 (1.4.9), several important key features were added
+
+* Support continuously varying media - mua/mus can vary in every voxel
+* Support -w / --savedetflag to specify which det photon data to output
+* Add json2mcx, converting from json file to mcxlab cfg
+* Can simulate infinite domain using cylic BC - added MCXLAB example
+* A new output type - partial-path data on all exiting voxels (experimental)
+
+
+In MCX v2019.3 (1.4.8), we added a list of major new additions, including
+
+* Support 4 different boundary conditions (total absorption, total reflection/mirror, Fresnel reflection and cylic), controlled independently (--bc/cfg.bc) at 6 facets of the domain
+* Add 4 built-in complex domain examples - Colin27 brain atlas, USC_19-5 brain atlas, Digimouse, and mcxyz skin-vessel benchmark
+* Support isotropic launch for all focuable sources - gaussian, pattern, pattern3d, fourier, disk, fourierx, fourierx2d, and slit - by setting cfg.srcdir(4) to nan
+* Add GPU-ANLM denoiser, mcxfilter.m, to mcxlab to reduce MC fluence noise, detailed in our [Yao2018] paper
+* Initial support of "photon sharing" - a fast approach to simultaneouly simulate multiple pattern src/det, as detailed in our Photoncs West 2019 talk by Ruoyang Yao/Shijie Yan [Yao&Yan2019]
+* First release of MCX Viewer - a built in 3D fluence rendering tool in mcxstudio (mcxviewer and mcxshow also provided separately)
+* Output partial scattering event counts in detected photon data, similar to MMC
+* Add CMake support, python-based mch file reader (by Shih-Cheng Tu), nightly build compilation script, colored command line output, and more
+
+In addition, we also fixed a number of critical bugs, such as
+
+* fix mcxlab gpuinfo output crash using multiple GPUs
+* disable linking to Intel OMP library (libiomp5) to avoid MATLAB 2016-2017 crash
+* fix mcxlab crash when srcpattern/srcdir/srcpos/detpos are not in double precision
+* fix shared memory allocation size bug
+* add the missing photon exit position in the trajectory output
+* fix mcxlab crash due to racing in multi-threads
+* force g to 1 in region where mus is 0
+
+[Yuan2018] Yaoshen Yuan, Leiming Yu, Zafer Doğan, Qianqian Fang*, 
+"Graphics processing units-accelerated adaptive nonlocal means filter for denoising 
+three-dimensional Monte Carlo photon transport simulations," 
+J. of Biomedical Optics, 23(12), 121618 (2018), URL: https://doi.org/10.1117/1.JBO.23.12.121618
+
+[Yao&Yan2019] Ruoyang Yao, Shijie Yan, Xavier Intes, Qianqian Fang,  
+"Accelerating Monte Carlo forward model with structured light illumination via 'photon sharing',"
+Photonics West 2019, paper#10874-11, San Francisco, CA, USA.
+[https://www.spiedigitallibrary.org/conference-presentations/10874/108740B/Accelerating-Monte-Carlo-forward-model-with-structured-light-illumination-via/10.1117/12.2510291?SSO=1 Full presentation for our invited talk]
 
 ---------------------------------------------------------------------
 
@@ -36,7 +82,7 @@ Carlo (MC) simulations at a blazing speed, typically hundreds to
 a thousand times faster than a fully optimized CPU-based MC 
 implementation.
 
-The algorithm of this software is detailed in the References [1,2]. 
+The algorithm of this software is detailed in the References [Fang2009,Yu2018]. 
 A short summary of the main features includes:
 
 *. 3D heterogeneous media represented by voxelated array
@@ -61,7 +107,7 @@ of MCX, i.e. MCXCL, was announced on July, 2012. It supports
 NVIDIA/AMD/Intel hardware out-of-box. If your hardware does
 not support CUDA, please download MCXCL from the below URL:
 
-  https://github.com/fangq/mcxcl
+  http://mcx.space/wiki/index.cgi?Learn#mcxcl
 
 ---------------------------------------------------------------------------
 II. Requirement and Installation
@@ -114,7 +160,7 @@ see a windows command window with message
   Done
   Press any key to continue ...
 
-You must reboot your Windows computer to make this setting effective.
+You MUST REBOOT your Windows computer to make this setting effective.
 The above patch modifies your driver settings so that you can run MCX 
 simulations for longer than a few seconds. Otherwise, when running MCX
 for over a few seconds, you will get a CUDA error: "unspecified error".
@@ -123,32 +169,6 @@ Please see the below link for details
 
 http://mcx.space/wiki/index.cgi?Doc/FAQ#I_am_getting_a_kernel_launch_timed_out_error_what_is_that
 
-For Linux and MacOS users, you need to add the following lines to your
-shell initialization scripts. First, use "echo $SHELL" command to 
-identify your shell type. For csh/tcsh, add the following lines 
-to your ~/.cshrc file:
-
-  if ("`uname -p`" =~ "*_64" ) then
-	  setenv LD_LIBRARY_PATH "/usr/local/cuda/lib64:$LD_LIBRARY_PATH"
-  else
-	  setenv LD_LIBRARY_PATH "/usr/local/cuda/lib:$LD_LIBRARY_PATH"
-  endif
-  setenv PATH "/usr/local/cuda/bin:$PATH"
-
-and for bash/sh users, add 
-
-  if [[ "`uname -p`" =~ .*_64 ]]; then
-	  export LD_LIBRARY_PATH="/usr/local/cuda/lib64:$LD_LIBRARY_PATH"
-  else
-	  export LD_LIBRARY_PATH="/usr/local/cuda/lib:$LD_LIBRARY_PATH"
-  fi
-  export PATH="/usr/local/cuda/bin:$PATH"
-
-to your ~/.bash_profile (for Ubuntu users, this file is ~/.bashrc).
-
-If the path "/usr/local/cuda/lib*" does not exist on your system or
-the CUDA library is not installed under this directory, you should
-substitute the actual path under which libcudart.* presents.
 
 
 III.Running Simulations
@@ -161,7 +181,7 @@ such as the following:
 
 <pre>###############################################################################
 #                      Monte Carlo eXtreme (MCX) -- CUDA                      #
-#          Copyright (c) 2009-2018 Qianqian Fang <q.fang at neu.edu>          #
+#          Copyright (c) 2009-2019 Qianqian Fang <q.fang at neu.edu>          #
 #                             http://mcx.space/                               #
 #                                                                             #
 # Computational Optics & Translational Imaging (COTI) Lab- http://fanglab.org #
@@ -169,7 +189,7 @@ such as the following:
 ###############################################################################
 #    The MCX Project is funded by the NIH/NIGMS under grant R01-GM114365      #
 ###############################################################################
-$Rev::7850c3 $ Last $Date::2018-07-21 12:28:44 -04$ by $Author::Qianqian Fang $
+$Rev::5e0f0c$2019.4 $Date::2019-04-22 18:40:07 -04$ by $Author::Qianqian Fang $
 ###############################################################################
 
 usage: mcx <param1> <param2> ...
@@ -179,13 +199,20 @@ where possible parameters include (the first value in [*|*] is the default)
  -f config     (--input)       read an input file in .json or .inp format
 
 == MC options ==
-
  -n [0|int]    (--photon)      total photon number (exponential form accepted)
                                max accepted value:9.2234e+18 on 64bit systems
  -r [1|+/-int] (--repeat)      if positive, repeat by r times,total= #photon*r
                                if negative, divide #photon into r subsets
  -b [1|0]      (--reflect)     1 to reflect photons at ext. boundary;0 to exit
- -B [0|1]      (--reflectin)   1 to reflect photons at int. boundary; 0 do not
+ -B '______'   (--bc)          per-face boundary condition (BC), 6 letters for
+    /case insensitive/         bounding box faces at -x,-y,-z,+x,+y,+z axes;
+			       overwrite -b if given. 
+			       each letter can be one of the following:
+			       '_': undefined, fallback to -b
+			       'r': like -b 1, Fresnel reflection BC
+			       'a': like -b 0, total absorption BC
+			       'm': mirror or total reflection BC
+			       'c': cyclic BC, enter from opposite face
  -u [1.|float] (--unitinmm)    defines the length unit for the grid edge
  -U [1|0]      (--normalize)   1 to normalize flux to unitary; 0 save raw
  -E [0|int|mch](--seed)        set random-number-generator seed, -1 to generate
@@ -202,33 +229,59 @@ where possible parameters include (the first value in [*|*] is the default)
                                detector (det ID starts from 1), used with -E 
 			       if 0, replay all detectors and sum all Jacobians
 			       if -1, replay all detectors and save separately
- -P '{...}'    (--shapes)      a JSON string for additional shapes in the grid
  -V [0|1]      (--specular)    1 source located in the background,0 inside mesh
- -N [10^7|int] (--reseed)      number of scattering events before reseeding RNG
  -e [0.|float] (--minenergy)   minimum energy level to terminate a photon
  -g [1|int]    (--gategroup)   number of time gates per run
- -a [0|1]      (--array)       1 for C array (row-major); 0 for Matlab array
 
 == GPU options ==
  -L            (--listgpu)     print GPU information only
  -t [16384|int](--thread)      total thread number
  -T [64|int]   (--blocksize)   thread number per block
- -A [0|int]    (--autopilot)   auto thread config:1 dedicated GPU;2 non-dedica.
+ -A [1|int]    (--autopilot)   1 let mcx decide thread/block size, 0 use -T/-t
  -G [0|int]    (--gpu)         specify which GPU to use, list GPU by -L; 0 auto
       or
  -G '1101'     (--gpu)         using multiple devices (1 enable, 0 disable)
  -W '50,30,20' (--workload)    workload for active devices; normalized by sum
  -I            (--printgpu)    print GPU information and run program
 
+== Input options ==
+ -P '{...}'    (--shapes)      a JSON string for additional shapes in the grid
+ -K [1|int|str](--mediabyte)   volume data format, use either a number or a str
+                               1 or byte: 0-128 tissue labels
+			       2 or short: 0-65535 (max to 4000) tissue labels
+			       4 or integer: integer tissue labels 
+                             100 or muamus_float: 2x 32bit floats for mua/mus
+                             101 or mua_float: 1 float per voxel for mua
+			     102 or muamus_half: 2x 16bit float for mua/mus
+			     103 or asgn_byte: 4x byte gray-levels for mua/s/g/n
+			     104 or muamus_short: 2x short gray-levels for mua/s
+ -a [0|1]      (--array)       1 for C array (row-major); 0 for Matlab array
+
 == Output options ==
  -s sessionid  (--session)     a string to label all output file names
+ -O [X|XFEJPM] (--outputtype)  X - output flux, F - fluence, E - energy deposit
+    /case insensitive/         J - Jacobian (replay mode),   P - scattering, 
+			       event counts at each voxel (replay mode only)
+                               M - momentum transfer; 
  -d [1|0]      (--savedet)     1 to save photon info at detectors; 0 not save
+ -w [DP|DSPMXVW](--savedetflag)a string controlling detected photon data fields
+    /case insensitive/         1 D  output detector ID (1)
+                               2 S  output partial scat. even counts (#media)
+                               4 P  output partial path-lengths (#media)
+			       8 M  output momentum transfer (#media)
+			      16 X  output exit position (3)
+			      32 V  output exit direction (3)
+			      64 W  output initial weight (1)
+      combine multiple items by using a string, or add selected numbers together
+      by default, mcx only saves detector ID and partial-path data
  -x [0|1]      (--saveexit)    1 to save photon exit positions and directions
-                               setting -x to 1 also implies setting '-d' to 1
+                               setting -x to 1 also implies setting '-d' to 1.
+			       same as adding 'XV' to -w.
  -X [0|1]      (--saveref)     1 to save diffuse reflectance at the air-voxels
                                right outside of the domain; if non-zero voxels
 			       appear at the boundary, pad 0s before using -X
- -m [0|1]      (--momentum)    1 to save photon momentum transfer,0 not to save
+ -m [0|1]      (--momentum)    1 to save photon momentum transfer,0 not to save.
+                               same as adding 'M' to the -w flag
  -q [0|1]      (--saveseed)    1 to save photon RNG seed for replay; 0 not save
  -M [0|1]      (--dumpmask)    1 to dump detector volume masks; 0 do not save
  -H [1000000] (--maxdetphoton) max number of detected photons
@@ -237,9 +290,7 @@ where possible parameters include (the first value in [*|*] is the default)
                                mc2 - MCX mc2 format (binary 32bit float)
                                nii - Nifti format
                                hdr - Analyze 7.5 hdr/img format
- -O [X|XFEJP]  (--outputtype)  X - output flux, F - fluence, E - energy deposit
-                               J - Jacobian (replay mode),   P - scattering
-                               event counts at each voxel (replay mode only)
+                               tx3 - GL texture data for rendering (GL_RGBA32F)
 
 == User IO options ==
  -h            (--help)        print this message
@@ -251,7 +302,7 @@ where possible parameters include (the first value in [*|*] is the default)
  -D [0|int]    (--debug)       print debug information (you can use an integer
   or                           or a string by combining the following flags)
  -D [''|RMP]                   1 R  debug RNG
-                               2 M  store photon trajectory info
+    /case insensitive/         2 M  store photon trajectory info
                                4 P  print progress bar
       combine multiple items by using a string, or add selected numbers together
 
@@ -263,16 +314,16 @@ where possible parameters include (the first value in [*|*] is the default)
  --maxvoidstep  [1000|int]     maximum distance (in voxel unit) of a photon that
                                can travel before entering the domain, if 
                                launched outside (i.e. a widefield source)
- --maxjumpdebug [1000000|int]  when trajectory is requested (i.e. -D M),
+ --maxjumpdebug [10000000|int] when trajectory is requested (i.e. -D M),
                                use this parameter to set the maximum positions
-                               stored (default: 1e6)
+                               stored (default: 1e7)
  --faststep [0|1]              1-use fast 1mm stepping, [0]-precise ray-tracing
 
 == Example ==
 example: (autopilot mode)
-       mcx -A -n 1e7 -f input.inp -G 1 -D P
+       mcx -A 1 -n 1e7 -f input.inp -G 1 -D P
 or (manual mode)
-       mcx -t 16384 -T 64 -n 1e7 -f input.inp -s test -r 2 -g 10 -d 1 -b 1 -G 1
+       mcx -t 16384 -T 64 -n 1e7 -f input.inp -s test -r 2 -g 10 -d 1 -w dpx -b 1 -G 1
 or (use multiple devices - 1st,2nd and 4th GPUs - together with equal load)
        mcx -A -n 1e7 -f input.inp -G 1101 -W 10,10,10
 or (use inline domain definition)
@@ -295,7 +346,7 @@ A typical MCX input file looks like this:
 1000000              # total photon, use -n to overwrite in the command line
 29012392             # RNG seed, negative to generate
 30.0 30.0 0.0 1      # source position (in grid unit), the last num (optional) sets srcfrom0 (-z)
-0 0 1                # initial directional vector
+0 0 1 0               # initial directional vector, 4th number is the focal-length, 0 for collimated beam, nan for isotropic
 0.e+00 1.e-09 1.e-10 # time-gates(s): start, end, step
 semi60x60x60.bin     # volume ('unsigned char' binary format)
 1 60 1 60            # x voxel size in mm (isotropic only), dim, start/end indices
@@ -470,7 +521,7 @@ To invoke the JSON-formatted input file in your simulations, you
 can use the "-f" command line option with MCX, just like using an 
 .inp file. For example:
 
-  mcx -A -n 20 -f onecube.json -s onecubejson
+  mcx -A 1 -n 20 -f onecube.json -s onecubejson
 
 The input file must have a ".json" suffix in order for MCX to 
 recognize. If the input information is set in both command line,
@@ -827,14 +878,35 @@ X. Acknowledgement
   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
   POSSIBILITY OF SUCH DAMAGE.
 
+=== Texture3D Sample Project in the GLScene Project by Jürgen Abel ===
+
+  Copyright (c) 2003 Jürgen Abel
+
+The MCX volume renderer (mcxviewer) was adapted based on the Texture3D Example
+provided by the GLScene Project (http://glscene.org). The original author
+of this example is Jürgen Abel. The license for GLScene is 
+
+GLScene is distributed under Mozilla Public Licence (MPL 2.0), which means, in short, 
+that it is free for both freeware and commercial use. 
+The code is still copyrighted (in that it isn't public domain), but you can use it 
+in products with closed or open-source freely. The only requirements are:
+Acknowledge GLScene is used somewhere in your application (in an about box, credits page or printed manual, etc.
+with at least a link to http://glscene.org)
+Modifications made to GLScene units must be made public (no need to publish the full code, 
+only to state which parts were altered, and how), but feel welcome to open-source your code if you so wish.
+Some Delphi units, API headers and DLLs are included in the GLScene package for convenience 
+but are not part of GLScene, may use different licensing scheme and have different copyright owners, 
+such files have an explicit notice attached to them or placed in their directory.
+
+
 ---------------------------------------------------------------------------
 XI. Reference
 
-[1] Qianqian Fang and David A. Boas, "Monte Carlo Simulation of Photon \
+[Fang2009] Qianqian Fang and David A. Boas, "Monte Carlo Simulation of Photon \
 Migration in 3D Turbid Media Accelerated by Graphics Processing Units,"
 Optics Express, vol. 17, issue 22, pp. 20178-20190 (2009).
 
-[2] Leiming Yu, Fanny Nina-Paravecino, David Kaeli, Qianqian Fang, \
+[Yu2019] Leiming Yu, Fanny Nina-Paravecino, David Kaeli, Qianqian Fang, \
 "Scalable and massively parallel Monte Carlo photon transport simulations \
 for heterogeneous computing platforms," J. Biomed. Opt. 23(1), 010504 (2018).
 

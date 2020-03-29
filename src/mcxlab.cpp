@@ -40,14 +40,14 @@
   #include <omp.h>
 #endif
 
-#if defined(USE_XORSHIFT128P_RAND)
+#if defined(USE_XOROSHIRO128P_RAND)
     #define RAND_WORD_LEN 4
+#elif defined(USE_LL5_RAND)
+    #define RAND_WORD_LEN 5
 #elif defined(USE_POSIX_RAND)
     #define RAND_WORD_LEN 4
-#elif defined(USE_MT_RAND)
-    #define RAND_WORD_LEN 0
 #else
-    #define RAND_WORD_LEN 5       /**< number of Words per RNG state */
+    #define RAND_WORD_LEN 4       /**< number of Words per RNG state */
 #endif
 
 /**<  Macro to read the 1st scalar cfg member */
@@ -103,7 +103,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]){
   int        threadid=0;
   const char       *outputtag[]={"data"};
   const char       *datastruct[]={"data","stat","dref"};
-  const char       *statstruct[]={"runtime","nphoton","energytot","energyabs","normalizer","workload"};
+  const char       *statstruct[]={"runtime","nphoton","energytot","energyabs","normalizer","unitinmm","workload"};
   const char       *gpuinfotag[]={"name","id","devcount","major","minor","globalmem",
                                   "constmem","sharedmem","regcount","clock","sm","core",
                                   "autoblock","autothread","maxgate"};
@@ -186,6 +186,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]){
    */
   for (jstruct = 0; jstruct < ncfg; jstruct++) {  /* how many configs */
     try{
+        unsigned int partialdata,hostdetreclen;
 	printf("Running simulations for configuration #%d ...\n", jstruct+1);
 
         /** Initialize cfg with default values first */
@@ -206,9 +207,13 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]){
 	cfg.issave2pt=(nlhs>=1);  /** save fluence rate to the 1st output if present */
 	cfg.issavedet=(nlhs>=2);  /** save detected photon data to the 2nd output if present */
 	cfg.issaveseed=(nlhs>=4); /** save detected photon seeds to the 4th output if present */
-#if defined(USE_MT_RAND)
-        cfg.issaveseed=0;
-#endif
+
+	/** Validate all input fields, and warn incompatible inputs */
+        mcx_validate_config(&cfg);
+
+	partialdata=(cfg.medianum-1)*(SAVE_NSCAT(cfg.savedetflag)+SAVE_PPATH(cfg.savedetflag)+SAVE_MOM(cfg.savedetflag));
+	hostdetreclen=partialdata+SAVE_DETID(cfg.savedetflag)+3*(SAVE_PEXIT(cfg.savedetflag)+SAVE_VEXIT(cfg.savedetflag))+SAVE_W0(cfg.savedetflag);
+
         /** One must define the domain and properties */
 	if(cfg.vol==NULL || cfg.medianum==0){
 	    mexErrMsgTxt("You must define 'vol' and 'prop' field.");
@@ -220,13 +225,13 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]){
 	
 	/** Initialize all buffers necessary to store the output variables */
 	if(nlhs>=1){
-            int fieldlen=cfg.dim.x*cfg.dim.y*cfg.dim.z*(int)((cfg.tend-cfg.tstart)/cfg.tstep+0.5);
+            int fieldlen=cfg.dim.x*cfg.dim.y*cfg.dim.z*(int)((cfg.tend-cfg.tstart)/cfg.tstep+0.5)*cfg.srcnum;
 	    if(cfg.replay.seed!=NULL && cfg.replaydet==-1)
 	        fieldlen*=cfg.detnum;
 	    cfg.exportfield = (float*)calloc(fieldlen,sizeof(float));
 	}
 	if(nlhs>=2){
-	    cfg.exportdetected=(float*)malloc((cfg.medianum+1+cfg.issaveexit*6+(cfg.ismomentum>0)*(cfg.medianum-1))*cfg.maxdetphoton*sizeof(float));
+	    cfg.exportdetected=(float*)malloc(hostdetreclen*cfg.maxdetphoton*sizeof(float));
         }
         if(nlhs>=4){
 	    cfg.seeddata=malloc(cfg.maxdetphoton*sizeof(float)*RAND_WORD_LEN);
@@ -235,10 +240,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]){
 	    cfg.exportdebugdata=(float*)malloc(cfg.maxjumpdebug*sizeof(float)*MCX_DEBUG_REC_LEN);
 	    cfg.debuglevel |= MCX_DEBUG_MOVE;
 	}
-	
-	/** Validate all input fields, and warn incompatible inputs */
-        mcx_validate_config(&cfg);
-	
+		
 	/** Start multiple threads, one thread to run portion of the simulation on one CUDA GPU, all in parallel */
 #ifdef _OPENMP
         omp_set_num_threads(activedev);
@@ -302,7 +304,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]){
 	}
 	/** if the 2nd output presents, output the detected photon partialpath data */
 	if(nlhs>=2){
-            fielddim[0]=(cfg.medianum+1+cfg.issaveexit*6+(cfg.ismomentum>0)*(cfg.medianum-1)); fielddim[1]=cfg.detectedcount; 
+            fielddim[0]=hostdetreclen; fielddim[1]=cfg.detectedcount; 
             fielddim[2]=0; fielddim[3]=0;
             if(cfg.detectedcount>0){
                     mxSetFieldByNumber(plhs[1],jstruct,0, mxCreateNumericArray(2,fielddim,mxSINGLE_CLASS,mxREAL));
@@ -315,7 +317,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]){
 	/** if the 1st output presents, output the fluence/energy-deposit volume data */
         if(nlhs>=1){
 	    int fieldlen;
-            fielddim[0]=cfg.dim.x; fielddim[1]=cfg.dim.y; 
+            fielddim[0]=cfg.srcnum*cfg.dim.x; fielddim[1]=cfg.dim.y; 
 	    fielddim[2]=cfg.dim.z; fielddim[3]=(int)((cfg.tend-cfg.tstart)/cfg.tstep+0.5);
 	    if(cfg.replay.seed!=NULL && cfg.replaydet==-1)
 	        fielddim[4]=cfg.detnum;
@@ -342,7 +344,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]){
             cfg.exportfield=NULL;
 
             /** also return the run-time info in outut.runtime */
-            mxArray *stat=mxCreateStructMatrix(1,1,6,statstruct);
+            mxArray *stat=mxCreateStructMatrix(1,1,7,statstruct);
             mxArray *val = mxCreateDoubleMatrix(1,1,mxREAL);
             *mxGetPr(val) = cfg.runtime;
             mxSetFieldByNumber(stat,0,0, val);
@@ -367,11 +369,16 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]){
             *mxGetPr(val) = cfg.normalizer;
             mxSetFieldByNumber(stat,0,4, val);
 
+            /** return the voxel size unitinmm */
+            val = mxCreateDoubleMatrix(1,1,mxREAL);
+            *mxGetPr(val) = cfg.unitinmm;
+            mxSetFieldByNumber(stat,0,5, val);
+
             /** return the relative workload between multiple GPUs */
             val = mxCreateDoubleMatrix(1,activedev,mxREAL);
 	    for(int i=0;i<activedev;i++)
                 *(mxGetPr(val)+i) = cfg.workload[i];
-            mxSetFieldByNumber(stat,0,5, val);
+            mxSetFieldByNumber(stat,0,6, val);
 
 	    mxSetFieldByNumber(plhs[0],jstruct,1, stat);
         }
@@ -433,7 +440,6 @@ void mcx_set_field(const mxArray *root,const mxArray *item,int idx, Config *cfg)
     GET_ONE_FIELD(cfg,autopilot)
     GET_ONE_FIELD(cfg,minenergy)
     GET_ONE_FIELD(cfg,unitinmm)
-    GET_ONE_FIELD(cfg,reseedlimit)
     GET_ONE_FIELD(cfg,printnum)
     GET_ONE_FIELD(cfg,voidtime)
     GET_ONE_FIELD(cfg,issaveseed)
@@ -446,6 +452,7 @@ void mcx_set_field(const mxArray *root,const mxArray *item,int idx, Config *cfg)
     GET_ONE_FIELD(cfg,maxvoidstep)
     GET_ONE_FIELD(cfg,maxjumpdebug)
     GET_ONE_FIELD(cfg,gscatter)
+    GET_ONE_FIELD(cfg,srcnum)
     GET_VEC3_FIELD(cfg,srcpos)
     GET_VEC34_FIELD(cfg,srcdir)
     GET_VEC3_FIELD(cfg,steps)
@@ -456,24 +463,42 @@ void mcx_set_field(const mxArray *root,const mxArray *item,int idx, Config *cfg)
     else if(strcmp(name,"vol")==0){
         dimtype dimxyz;
         cfg->mediabyte=0;
-        if(mxIsUint8(item) || mxIsInt8(item))
-	     cfg->mediabyte=1;
-	else if(mxIsUint16(item) || mxIsInt16(item))
-	     cfg->mediabyte=2;
-	else if(mxIsUint32(item) || mxIsInt32(item))
-	     cfg->mediabyte=4;
-	else if(mxIsDouble(item))
-	     cfg->mediabyte=8;
-	else if(mxIsSingle(item))
-	     cfg->mediabyte=14;
-        if(cfg->mediabyte==0 || mxGetNumberOfDimensions(item)!=3 )
-             mexErrMsgTxt("the 'vol' field must be a 3D integer array");
         arraydim=mxGetDimensions(item);
-	for(i=0;i<3;i++) ((unsigned int *)(&cfg->dim))[i]=arraydim[i];
+
+	if(mxGetNumberOfDimensions(item)==3){
+	    if(mxIsUint8(item) || mxIsInt8(item)) // input is a 3D byte array
+		 cfg->mediabyte=1;
+	    else if(mxIsUint16(item) || mxIsInt16(item)) // input is a 3D short array
+		 cfg->mediabyte=2;
+	    else if(mxIsUint32(item) || mxIsInt32(item)) // input is a 3D integer array
+		 cfg->mediabyte=4;
+	    else if(mxIsDouble(item)) // input is a 3D double array
+		 cfg->mediabyte=8;
+	    else if(mxIsSingle(item)) // input is a float32 array
+		 cfg->mediabyte=14;
+            for(i=0;i<3;i++) ((unsigned int *)(&cfg->dim))[i]=arraydim[i];
+	}else if(mxGetNumberOfDimensions(item)==4){ // if dimension is 4D, 1st dim is the property records: mua/mus/g/n
+	    if((mxIsUint8(item) || mxIsInt8(item)) && arraydim[0]==4) // if 4D byte array has a 1st dim of 4
+		 cfg->mediabyte=MEDIA_ASGN_BYTE;
+	    else if(mxIsSingle(item) && arraydim[0]==3)
+		 cfg->mediabyte=MEDIA_LABEL_HALF;
+	    else if((mxIsUint16(item) || mxIsInt16(item)) && arraydim[0]==3)
+		 cfg->mediabyte=MEDIA_2LABEL_MIX;
+	    else if((mxIsUint16(item) || mxIsInt16(item)) && arraydim[0]==2)// if 4D short array has a 1st dim of 2
+		 cfg->mediabyte=MEDIA_AS_SHORT;
+	    else if(mxIsSingle(item) && arraydim[0]==2) // if 4D float32 array has a 1st dim of 2
+		 cfg->mediabyte=MEDIA_AS_F2H;
+	    else if(mxIsSingle(item) && arraydim[0]==1) // if 4D byte array has a 1st dim of 1
+		 cfg->mediabyte=MEDIA_MUA_FLOAT;
+            for(i=0;i<3;i++) ((unsigned int *)(&cfg->dim))[i]=arraydim[i+1];
+	}
+        if(cfg->mediabyte==0)
+	    mexErrMsgTxt("the 'vol' field must be a 3D or 4D array");
+
 	dimxyz=cfg->dim.x*cfg->dim.y*cfg->dim.z;
 	if(cfg->vol) free(cfg->vol);
 	cfg->vol=(unsigned int *)malloc(dimxyz*sizeof(unsigned int));
-	if(cfg->mediabyte==4)
+	if(cfg->mediabyte==4 || cfg->mediabyte>100)
 	    memcpy(cfg->vol,mxGetData(item),dimxyz*sizeof(unsigned int));
 	else{
 	    if(cfg->mediabyte==1){
@@ -488,11 +513,79 @@ void mcx_set_field(const mxArray *root,const mxArray *item,int idx, Config *cfg)
 	        double *val=(double *)mxGetPr(item);
 	        for(i=0;i<dimxyz;i++)
 	            cfg->vol[i]=val[i];
+		cfg->mediabyte=4;
 	    }else if(cfg->mediabyte==14){
 	        float *val=(float *)mxGetPr(item);
 	        for(i=0;i<dimxyz;i++)
 	            cfg->vol[i]=val[i];
 		cfg->mediabyte=4;
+	    }else if(cfg->mediabyte==MEDIA_AS_F2H){
+	        float *val=(float *)mxGetPr(item);
+		union{
+		    float f[2];
+		    unsigned int i[2];
+		    unsigned short h[2];
+		} f2h;
+		unsigned short tmp;
+	        for(i=0;i<dimxyz;i++){
+		    f2h.f[0]=val[i<<1];
+		    f2h.f[1]=val[(i<<1)+1];
+
+		    f2h.h[0] = (f2h.i[0] >> 31) << 5;
+		    tmp = (f2h.i[0] >> 23) & 0xff;
+		    tmp = (tmp - 0x70) & ((unsigned int)((int)(0x70 - tmp) >> 4) >> 27);
+		    f2h.h[0] = (f2h.h[0] | tmp) << 10;
+		    f2h.h[0] |= (f2h.i[0] >> 13) & 0x3ff;
+
+		    f2h.h[1] = (f2h.i[1] >> 31) << 5;
+		    tmp = (f2h.i[1] >> 23) & 0xff;
+		    tmp = (tmp - 0x70) & ((unsigned int)((int)(0x70 - tmp) >> 4) >> 27);
+		    f2h.h[1] = (f2h.h[1] | tmp) << 10;
+		    f2h.h[1] |= (f2h.i[1] >> 13) & 0x3ff;
+
+	            cfg->vol[i]=f2h.i[0];
+		}
+	    }else if(cfg->mediabyte==MEDIA_LABEL_HALF){
+		float *val=(float *)mxGetPr(item);
+		union{
+		    float f[3];
+		    unsigned int i[3];
+		    unsigned short h[2];
+		    unsigned char c[4];
+		} f2bh;
+		unsigned short tmp;
+		for(i=0;i<dimxyz;i++){
+		    f2bh.f[2]=val[i*3];
+		    f2bh.f[1]=val[i*3+1];
+		    f2bh.f[0]=val[i*3+2];
+
+		    if(f2bh.f[1]<0.f || f2bh.f[1]>=4.f || f2bh.f[0]<0.f )
+		        mexErrMsgTxt("the 2nd volume must have an integer value between 0 and 3");
+
+		    f2bh.h[0]=( (((unsigned char)(f2bh.f[1]) & 0x3) << 14) | (unsigned short)(f2bh.f[0]) );
+
+		    f2bh.h[1] = (f2bh.i[2] >> 31) << 5;
+		    tmp = (f2bh.i[2] >> 23) & 0xff;
+		    tmp = (tmp - 0x70) & ((unsigned int)((int)(0x70 - tmp) >> 4) >> 27);
+		    f2bh.h[1] = (f2bh.h[1] | tmp) << 10;
+		    f2bh.h[1] |= (f2bh.i[2] >> 13) & 0x3ff;
+
+	            cfg->vol[i]=f2bh.i[0];
+		}
+	    }else if(cfg->mediabyte==MEDIA_2LABEL_MIX){
+		unsigned short *val=(unsigned short *)mxGetPr(item);
+		union{
+		    unsigned short h[2];
+		    unsigned char  c[4];
+		    unsigned int   i[1];
+		} f2bh;
+		unsigned short tmp;
+		for(i=0;i<dimxyz;i++){
+		    f2bh.c[0]=val[i*3]   & 0xFF;
+		    f2bh.c[1]=val[i*3+1] & 0xFF;
+		    f2bh.h[1]=val[i*3+2] & 0x7FFF;
+	            cfg->vol[i]=f2bh.i[0];
+		}
 	    }
 	}
         printf("mcx.dim=[%d %d %d];\n",cfg->dim.x,cfg->dim.y,cfg->dim.z);
@@ -552,7 +645,7 @@ void mcx_set_field(const mxArray *root,const mxArray *item,int idx, Config *cfg)
 	printf("mcx.srctype='%s';\n",strtypestr);
     }else if(strcmp(name,"outputtype")==0){
         int len=mxGetNumberOfElements(item);
-        const char *outputtype[]={"flux","fluence","energy","jacobian","nscat","wl","wp",""};
+        const char *outputtype[]={"flux","fluence","energy","jacobian","nscat","wl","wp","wm",""};
         char outputstr[MAX_SESSION_LENGTH]={'\0'};
 
         if(!mxIsChar(item) || len==0)
@@ -563,7 +656,7 @@ void mcx_set_field(const mxArray *root,const mxArray *item,int idx, Config *cfg)
         if (status != 0)
              mexWarnMsgTxt("not enough space. string is truncated.");
         cfg->outputtype=mcx_keylookup(outputstr,outputtype);
-        if(cfg->outputtype==5 || cfg->outputtype==6) // map wl to jacobian, wp to nscat
+        if(cfg->outputtype>=5) // map wl to jacobian, wp to nscat
              cfg->outputtype-=2;
         if(cfg->outputtype==-1)
              mexErrMsgTxt("the specified output type is not supported");
@@ -584,6 +677,20 @@ void mcx_set_field(const mxArray *root,const mxArray *item,int idx, Config *cfg)
         if(cfg->debuglevel==0)
              mexWarnMsgTxt("the specified debuglevel is not supported");
 	printf("mcx.debuglevel='%d';\n",cfg->debuglevel);
+    }else if(strcmp(name,"savedetflag")==0){
+        int len=mxGetNumberOfElements(item);
+        const char saveflag[]={'D','S','P','M','X','V','W','\0'};
+        char savedetflag[MAX_SESSION_LENGTH]={'\0'};
+
+        if(!mxIsChar(item) || len==0)
+             mexErrMsgTxt("the 'savedetflag' field must be a non-empty string");
+	if(len>MAX_SESSION_LENGTH)
+	     mexErrMsgTxt("the 'savedetflag' field is too long");
+        int status = mxGetString(item, savedetflag, MAX_SESSION_LENGTH);
+        if (status != 0)
+             mexWarnMsgTxt("not enough space. string is truncated.");
+        cfg->savedetflag=mcx_parsedebugopt(savedetflag,saveflag);
+	printf("mcx.savedetflag='%d';\n",cfg->savedetflag);
     }else if(strcmp(name,"srcpattern")==0){
         arraydim=mxGetDimensions(item);
         dimtype dimz=1;
@@ -603,6 +710,14 @@ void mcx_set_field(const mxArray *root,const mxArray *item,int idx, Config *cfg)
         jsonshapes=new char[len+1];
         mxGetString(item, jsonshapes, len+1);
         jsonshapes[len]='\0';
+    }else if(strcmp(name,"bc")==0){
+        int len=mxGetNumberOfElements(item);
+        if(!mxIsChar(item) || len==0 || len>7)
+             mexErrMsgTxt("the 'bc' field must be a non-empty string");
+
+        mxGetString(item, cfg->bc, len+1);
+        cfg->bc[len]='\0';
+        printf("mcx.bc='%s';\n",cfg->bc);
     }else if(strcmp(name,"detphotons")==0){
         arraydim=mxGetDimensions(item);
 	dimdetps[0]=arraydim[0];
@@ -645,11 +760,11 @@ void mcx_set_field(const mxArray *root,const mxArray *item,int idx, Config *cfg)
            double *val=mxGetPr(item);
 	   cfg->gpuid=val[0];
            memset(cfg->deviceid,0,MAX_DEVICE);
-           if(cfg->gpuid<MAX_DEVICE){
+           if(cfg->gpuid>0 && cfg->gpuid<MAX_DEVICE){
                 memset(cfg->deviceid,'0',cfg->gpuid-1);
            	cfg->deviceid[cfg->gpuid-1]='1';
            }else
-           	mexErrMsgTxt("GPU id can not be more than 256");
+           	mexErrMsgTxt("GPU id must be positive and can not be more than 256");
            printf("mcx.gpuid=%d;\n",cfg->gpuid);
 	}
         for(int i=0;i<MAX_DEVICE;i++)
@@ -664,7 +779,7 @@ void mcx_set_field(const mxArray *root,const mxArray *item,int idx, Config *cfg)
 	     cfg->workload[i]=val[i];
         printf("mcx.workload=<<%d>>;\n",arraydim[0]*arraydim[1]);
     }else{
-        printf("WARNING: redundant field '%s'\n",name);
+        printf(S_RED "WARNING: redundant field '%s'\n" S_RESET,name);
     }
     if(jsonshapes){
         Grid3D grid={&(cfg->vol),&(cfg->dim),{1.f,1.f,1.f},0};
@@ -687,7 +802,8 @@ void mcx_set_field(const mxArray *root,const mxArray *item,int idx, Config *cfg)
  */
 
 void mcx_replay_prep(Config *cfg){
-    int i,j;
+    int i,j, hasdetid=0, offset;
+    float plen;
     if(cfg->seed==SEED_FROM_FILE && detps==NULL)
         mexErrMsgTxt("you give cfg.seed for replay, but did not specify cfg.detphotons.\nPlease define it as the detphoton output from the baseline simulation");
     if(detps==NULL || cfg->seed!=SEED_FROM_FILE)
@@ -696,6 +812,12 @@ void mcx_replay_prep(Config *cfg){
         mexErrMsgTxt("the column numbers of detphotons and seed do not match");
     if(seedbyte==0)
         mexErrMsgTxt("the seed input is empty");
+
+    hasdetid=SAVE_DETID(cfg->savedetflag);
+    offset=SAVE_NSCAT(cfg->savedetflag)*(cfg->medianum-1);
+
+    if(((!hasdetid) && cfg->detnum>1) || !SAVE_PPATH(cfg->savedetflag))
+           mexErrMsgTxt("please rerun the baseline simulation and save detector ID (D) and partial-path (P) using cfg.savedetflag='dp' ");
 
     cfg->replay.weight=(float*)malloc(cfg->nphoton*sizeof(float));
     cfg->replay.tof=(float*)calloc(cfg->nphoton,sizeof(float));
@@ -708,10 +830,11 @@ void mcx_replay_prep(Config *cfg){
                 memcpy((char *)(cfg->replay.seed)+cfg->nphoton*seedbyte, (char *)(cfg->replay.seed)+i*seedbyte, seedbyte);
             cfg->replay.weight[cfg->nphoton]=1.f;
 	    cfg->replay.tof[cfg->nphoton]=0.f;
-            cfg->replay.detid[cfg->nphoton]=(int)(detps[i*dimdetps[0]]);
-            for(j=2;j<cfg->medianum+1;j++){
-                cfg->replay.weight[cfg->nphoton]*=expf(-cfg->prop[j-1].mua*detps[i*dimdetps[0]+j]*cfg->unitinmm);
-                cfg->replay.tof[cfg->nphoton]+=detps[i*dimdetps[0]+j]*cfg->unitinmm*R_C0*cfg->prop[j-1].n;
+            cfg->replay.detid[cfg->nphoton]=(hasdetid) ? (int)(detps[i*dimdetps[0]]) : 1;
+            for(j=hasdetid;j<cfg->medianum-1+hasdetid;j++){
+	        plen=detps[i*dimdetps[0]+offset+j]*cfg->unitinmm;
+                cfg->replay.weight[cfg->nphoton]*=expf(-cfg->prop[j-hasdetid+1].mua*plen);
+                cfg->replay.tof[cfg->nphoton]+=plen*R_C0*cfg->prop[j-hasdetid+1].n;
             }
             if(cfg->replay.tof[cfg->nphoton]<cfg->tstart || cfg->replay.tof[cfg->nphoton]>cfg->tend) /*need to consider -g*/
                 continue;
@@ -733,6 +856,9 @@ void mcx_replay_prep(Config *cfg){
 
 void mcx_validate_config(Config *cfg){
      int i,gates,idx1d;
+     const char boundarycond[]={'_','r','a','m','c','\0'};
+     unsigned int partialdata=(cfg->medianum-1)*(SAVE_NSCAT(cfg->savedetflag)+SAVE_PPATH(cfg->savedetflag)+SAVE_MOM(cfg->savedetflag));
+     unsigned int hostdetreclen=partialdata+SAVE_DETID(cfg->savedetflag)+3*(SAVE_PEXIT(cfg->savedetflag)+SAVE_VEXIT(cfg->savedetflag))+SAVE_W0(cfg->savedetflag);
 
      if(!cfg->issrcfrom0){
         cfg->srcpos.x--;cfg->srcpos.y--;cfg->srcpos.z--; /*convert to C index, grid center*/
@@ -782,10 +908,16 @@ void mcx_validate_config(Config *cfg){
      if(cfg->replaydet==-1 && cfg->detnum==1)
         cfg->replaydet=1;
 
+     for(i=0;i<6;i++)
+        if(cfg->bc[i]>='A' && mcx_lookupindex(cfg->bc+i,boundarycond))
+	   mexErrMsgTxt("unknown boundary condition specifier");
+
      if(cfg->medianum){
-        for(int i=0;i<cfg->medianum;i++)
-             if(cfg->prop[i].mus==0.f)
+        for(i=0;i<cfg->medianum;i++)
+             if(cfg->prop[i].mus==0.f){
 	         cfg->prop[i].mus=EPS;
+		 cfg->prop[i].g=1.f;
+	     }
      }
      if(cfg->unitinmm!=1.f){
         cfg->steps.x=cfg->unitinmm; cfg->steps.y=cfg->unitinmm; cfg->steps.z=cfg->unitinmm;
@@ -799,12 +931,14 @@ void mcx_validate_config(Config *cfg){
      if(cfg->issavedet==0){
          cfg->issaveexit=0;
 	 cfg->ismomentum=0;
+	 if(cfg->seed!=SEED_FROM_FILE)
+	    cfg->savedetflag=0;
      }
      if(cfg->respin==0)
          mexErrMsgTxt("respin number can not be 0, check your -r/--repeat input or cfg.respin value");
 
      if(cfg->seed<0 && cfg->seed!=SEED_FROM_FILE) cfg->seed=time(NULL);
-     if((cfg->outputtype==otJacobian || cfg->outputtype==otWP) && cfg->seed!=SEED_FROM_FILE)
+     if((cfg->outputtype==otJacobian || cfg->outputtype==otWP || cfg->outputtype==otDCS) && cfg->seed!=SEED_FROM_FILE)
          mexErrMsgTxt("Jacobian output is only valid in the reply mode. Please define cfg.seed");     
      for(i=0;i<cfg->detnum;i++){
         if(!cfg->issrcfrom0){
@@ -823,13 +957,43 @@ void mcx_validate_config(Config *cfg){
         if(cfg->seed==SEED_FROM_FILE){
             if(cfg->respin>1 || cfg->respin<0){
 	       cfg->respin=1;
-	       fprintf(stderr,"Warning: respin is disabled in the replay mode\n");
+	       fprintf(stderr,S_RED "WARNING: respin is disabled in the replay mode\n" S_RESET);
 	    }
         }
      }
+     if((cfg->mediabyte==MEDIA_AS_F2H || cfg->mediabyte==MEDIA_MUA_FLOAT || cfg->mediabyte==MEDIA_AS_HALF) && cfg->medianum<2)
+         mexErrMsgTxt("the 'prop' field must contain at least 2 rows for the requested media format");
+     if((cfg->mediabyte==MEDIA_ASGN_BYTE || cfg->mediabyte==MEDIA_AS_SHORT) && cfg->medianum<3)
+         mexErrMsgTxt("the 'prop' field must contain at least 3 rows for the requested media format");
+     if(cfg->ismomentum)
+         cfg->savedetflag=SET_SAVE_MOM(cfg->savedetflag);
+     if(cfg->issaveexit){
+         cfg->savedetflag=SET_SAVE_PEXIT(cfg->savedetflag);
+	 cfg->savedetflag=SET_SAVE_VEXIT(cfg->savedetflag);
+     }
+     if(cfg->issavedet && cfg->savedetflag==0)
+         cfg->savedetflag=0x5;
+
+     if(cfg->mediabyte>=100){
+	 cfg->savedetflag=UNSET_SAVE_NSCAT(cfg->savedetflag);
+	 cfg->savedetflag=UNSET_SAVE_PPATH(cfg->savedetflag);
+	 cfg->savedetflag=UNSET_SAVE_MOM(cfg->savedetflag);
+     }
+     if(cfg->issaveref>1){
+        if(cfg->issavedet==0)
+	    mexErrMsgTxt("you must have at least two outputs if issaveref is greater than 1");
+
+        if(cfg->dim.x*cfg->dim.y*cfg->dim.z > cfg->maxdetphoton){
+	    mexWarnMsgTxt("you must set cfg.maxdetphoton larger than prod(size(cfg.vol)) when cfg.issaveref is greater than 1, autocorrecting ...");
+	    cfg->maxdetphoton=cfg->dim.x*cfg->dim.y*cfg->dim.z;
+	}
+	cfg->savedetflag=0x5;
+     }
      cfg->his.maxmedia=cfg->medianum-1; /*skip medium 0*/
      cfg->his.detnum=cfg->detnum;
-     cfg->his.colcount=cfg->medianum+1+cfg->issaveexit*6+(cfg->ismomentum>0)*(cfg->medianum-1); /*column count=maxmedia+2*/
+     cfg->his.srcnum=cfg->srcnum;
+     cfg->his.colcount=hostdetreclen; /*column count=maxmedia+2*/
+     cfg->his.savedetflag=cfg->savedetflag;
      mcx_replay_prep(cfg);
 }
 

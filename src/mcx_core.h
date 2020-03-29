@@ -35,9 +35,7 @@ extern "C" {
 
 #define ABS(a)  ((a)<0?-(a):(a))
 #define DETINC	32
-#define MCX_DEBUG_RNG       1                   /**< MCX debug flags */
-#define MCX_DEBUG_MOVE      2
-#define MCX_DEBUG_PROGRESS  4
+
 #define MAX_ACCUM           1000.f
 
 #define ROULETTE_SIZE       10.f                /**< Russian Roulette size */
@@ -60,7 +58,7 @@ typedef struct  __align__(16) MCXDir{
 typedef struct  __align__(16) MCXTimer{
         float pscat; /**< remaining unit-less scattering length = length * scattering coeff */
         float t;     /**< photon elapse time, unit=s*/
-	float tnext; /**< time for the next accumulation,unit=s*/
+	float pathlen; /**< photon total pathlength inside a voxel, in grid unit*/
 	float ndone; /**< number of completed photons*/
 }MCXtime;
 
@@ -128,13 +126,10 @@ typedef struct  __align__(16) KernelParams {
   unsigned int maxgate;              /**< max number of time gates */
   unsigned int idx1dorig;            /**< pre-computed 1D index of the photon at launch for pencil/isotropic beams */
   unsigned int mediaidorig;          /**< pre-computed media index of the photon at launch for pencil/isotropic beams */
-  unsigned int reseedlimit;          /**< how many photon moves to rejuvenate the RNG (obsolete) */
   unsigned int isatomic;             /**< whether atomic operations are used */
   unsigned int maxvoidstep;          /**< max steps that photon can travel in the background before entering non-zero voxels */
   unsigned int issaveseed;           /**< flag if one need to save the detected photon seeds for replay */
-  unsigned int issaveexit;           /**< flag if one need to save the detected photon positions and dir vectors */
   unsigned int issaveref;            /**< flag if one need to save diffuse reflectance data in the 0-voxel layer next to the boundary */
-  unsigned int ismomentum;           /**< 1 to save momentum transfer for detected photons, implies issavedet=1*/
   unsigned int isspecular;           /**< 0 do not perform specular reflection at launch, 1 do specular reflection */
   unsigned int seedoffset;           /**< offset of the seed, not used */
   int seed;                          /**< RNG seed passted from the host */
@@ -143,10 +138,17 @@ typedef struct  __align__(16) KernelParams {
   int oddphotons;                    /**< how many threads need to simulate 1 more photon above the basic load (threadphoton) */
   int faststep;                      /**< use an approximated stepping approach, not used */
   unsigned int debuglevel;           /**< debug flags */
+  unsigned int savedetflag;          /**< detected photon save flags */
+  unsigned int reclen;               /**< length of buffer per detected photon */
+  unsigned int partialdata;          /**< per-medium detected photon data length */
+  unsigned int w0offset;             /**< photon-sharing buffer offset */
+  unsigned int mediaformat;          /**< format of the media buffer */
   unsigned int maxjumpdebug;         /**< max number of positions to be saved to save photon trajectory when -D M is used */
   unsigned int gscatter;             /**< how many scattering events after which mus/g can be approximated by mus' */
   unsigned int is2d;                 /**< is the domain a 2D slice? */
   int replaydet;                     /**< select which detector to replay, 0 for all, -1 save all separately */
+  unsigned int srcnum;               /**< total number of source patterns */
+  unsigned char bc[8];               /**< boundary conditions */
 }MCXParam;
 
 void mcx_run_simulation(Config *cfg,GPUInfo *gpu);
