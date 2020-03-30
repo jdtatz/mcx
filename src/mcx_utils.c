@@ -621,7 +621,6 @@ void mcx_error(const int id,const char *msg,const char *file,const int linenum){
 please modify TdrDelay value in the registry. Please checkout FAQ #1 for more details:\n\
 URL: http://mcx.space/wiki/index.cgi?Doc/FAQ\n" S_RESET);
      }
-	}
 	if (mcx_error_jmp_buf_env == NULL) {
 		exit(id);
 	} else {

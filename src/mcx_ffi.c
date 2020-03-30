@@ -27,6 +27,7 @@ Config * mcx_create_config(){
     Config * cfg = malloc(sizeof(Config));
     mcx_initcfg(cfg);
     cfg->parentid = mpFFI;
+    cfg->savedetflag = SET_SAVE_PPATH(SET_SAVE_NSCAT(SET_SAVE_DETID(cfg->savedetflag)));
     return cfg;
 }
 
@@ -133,27 +134,32 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
     ELIF_SCALAR(isnormalized)
     ELIF_SCALAR(issave2pt)
     ELIF_SCALAR(issavedet)
+    ELIF_SCALAR(isspecular)
     ELIF_SCALAR(isgpuinfo)
     ELIF_SCALAR(issrcfrom0)
     ELIF_SCALAR(autopilot)
     ELIF_SCALAR(minenergy)
     ELIF_SCALAR(unitinmm)
-    ELIF_SCALAR(reseedlimit)
     ELIF_SCALAR(printnum)
     ELIF_SCALAR(voidtime)
     ELIF_SCALAR(issaveseed)
     ELIF_SCALAR(issaveref)
     ELIF_SCALAR(issaveexit)
     ELIF_SCALAR(ismomentum)
+    ELIF_SCALAR(internalsrc)
     ELIF_SCALAR(isrowmajor)
     ELIF_SCALAR(replaydet)
     ELIF_SCALAR(faststep)
     ELIF_SCALAR(maxvoidstep)
     ELIF_SCALAR(maxjumpdebug)
     ELIF_SCALAR(gscatter)
+    ELIF_SCALAR(outputtype)
+    ELIF_SCALAR(srcnum)
+    ELIF_SCALAR(savedetflag)
     ELIF_VEC3(srcpos, float)
     ELIF_VEC34(srcdir, float)
     ELIF_VEC3(steps, float)
+    ELIF_VEC3(dim, unsigned)
     ELIF_VEC3(crop0, unsigned)
     ELIF_VEC3(crop1, unsigned)
     ELIF_VEC4(srcparam1, float)
@@ -224,25 +230,6 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
             return -1;
         }
         cfg->srctype = srctype;
-    } else if(strcmp(key,"outputtype")==0) {
-        if(strcmp(dtype, "string") != 0){
-            *err = typeErr;
-            return -1;
-        } else if(dims[0] == 0){
-            *err = strLenErr;
-            return -1;
-        }
-        const char *outputtype[]={"flux","fluence","energy","jacobian","nscat","wl","wp",""};
-        int outtyp = mcx_keylookup((char*)value,outputtype);
-        if(outtyp == 5 || outtyp == 6) // map wl to jacobian, wp to nscat
-            cfg->outputtype = outtyp - 2;
-        else
-            cfg->outputtype = outtyp;
-        static char * outTypErr = "the specified output type is not supported";
-        if(outtyp == -1){
-            *err = outTypErr;
-            return -1;
-        }
     }else if(strcmp(key,"debuglevel")==0){
         if(strcmp(dtype, "string") != 0){
             *err = typeErr;
@@ -464,7 +451,6 @@ void* mcx_get_field(Config *cfg, const char *key, char** dtype, int* ndim, unsig
     GET_SCALAR(maxgate, uint)
     GET_SCALAR(respin, uint)
     GET_SCALAR(printnum, uint)
-    GET_SCALAR(reseedlimit, uint)
     GET_SCALAR(gpuid, int)
     GET_CUBE(vol, uint, cfg->dim.x, cfg->dim.y, cfg->dim.z)
     GET_VECTOR(session, char, MAX_SESSION_LENGTH)
@@ -475,6 +461,7 @@ void* mcx_get_field(Config *cfg, const char *key, char** dtype, int* ndim, unsig
     GET_SCALAR(isnormalized, char)
     GET_SCALAR(issavedet, char)
     GET_SCALAR(issave2pt, char)
+    GET_SCALAR(isspecular, char)
     GET_SCALAR(isgpuinfo, char)
     GET_SCALAR(issrcfrom0, char)
     GET_SCALAR(isdumpmask, char)
@@ -482,6 +469,7 @@ void* mcx_get_field(Config *cfg, const char *key, char** dtype, int* ndim, unsig
     GET_SCALAR(issaveseed, char)
     GET_SCALAR(issaveexit, char)
     GET_SCALAR(ismomentum, char)
+    GET_SCALAR(internalsrc, char)
     GET_SCALAR(issaveref, char)
     GET_SCALAR(srctype, char)
     GET_SCALAR(outputtype, char)
@@ -680,6 +668,20 @@ int mcx_validateconfig(Config *cfg, char **errmsg, int seedbyte, float *detps, i
         cfg->issaveexit=0;
         cfg->ismomentum=0;
     }
+     if(cfg->ismomentum) cfg->savedetflag=SET_SAVE_MOM(cfg->savedetflag);
+
+     if(cfg->issaveexit){
+        cfg->savedetflag=SET_SAVE_PEXIT(cfg->savedetflag);
+	    cfg->savedetflag=SET_SAVE_VEXIT(cfg->savedetflag);
+     }
+     if(cfg->issavedet && cfg->savedetflag==0) cfg->savedetflag=0x5;
+
+     if(cfg->mediabyte>=100){
+	     cfg->savedetflag=UNSET_SAVE_NSCAT(cfg->savedetflag);
+	     cfg->savedetflag=UNSET_SAVE_PPATH(cfg->savedetflag);
+	     cfg->savedetflag=UNSET_SAVE_MOM(cfg->savedetflag);
+    }
+
     if(cfg->seed<0 && cfg->seed!=SEED_FROM_FILE) cfg->seed=time(NULL);
     if((cfg->outputtype==otJacobian || cfg->outputtype==otWP) && cfg->seed!=SEED_FROM_FILE){
         static char * replyErr = "Jacobian output is only valid in the reply mode. Please define cfg.seed";
