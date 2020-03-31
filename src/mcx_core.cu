@@ -2064,6 +2064,11 @@ void mcx_run_simulation(Config *cfg,GPUInfo *gpu){
 
      MCX_FPRINTF(cfg->flog,"requesting %d bytes of shared memory\n",sharedbuf);
 
+     if(sharedbuf > gpu[gpuid].sharedmem) {
+        MCX_FPRINTF(stderr, S_RED "Requested more shared memory, %u, than available per block, %zu\n" S_RESET, sharedbuf, gpu[gpuid].sharedmem);
+        mcx_error(-1, "Requested more shared memory than available per block", __FILE__, __LINE__);
+     }
+
      //simulate for all time-gates in maxgate groups per run
      for(timegate=0;timegate<totalgates;timegate+=gpu[gpuid].maxgate){
 
