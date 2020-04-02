@@ -27,7 +27,7 @@ Config * mcx_create_config(){
     Config * cfg = malloc(sizeof(Config));
     mcx_initcfg(cfg);
     cfg->parentid = mpFFI;
-    cfg->savedetflag = SET_SAVE_PPATH(SET_SAVE_NSCAT(SET_SAVE_DETID(cfg->savedetflag)));
+    cfg->savedetflag = SET_SAVE_DETID(cfg->savedetflag);
     return cfg;
 }
 
@@ -419,6 +419,9 @@ void* mcx_get_field(Config *cfg, const char *key, char** dtype, int* ndim, unsig
     static char * uint8Type = "uint8";
     static char * charType = "char";
 
+    unsigned int partialdata=(cfg->medianum-1)*(SAVE_NSCAT(cfg->savedetflag)+SAVE_PPATH(cfg->savedetflag)+SAVE_MOM(cfg->savedetflag)); // buf len for media-specific data, copy from gpu to host
+    unsigned int hostdetreclen=partialdata+SAVE_DETID(cfg->savedetflag)+3*(SAVE_PEXIT(cfg->savedetflag)+SAVE_VEXIT(cfg->savedetflag))+SAVE_W0(cfg->savedetflag); // host-side det photon data buffer length
+
     if (strcmp(key, "exportfield") == 0) {
         *dtype = floatType;
         *ndim = 4;
@@ -469,6 +472,7 @@ void* mcx_get_field(Config *cfg, const char *key, char** dtype, int* ndim, unsig
     GET_SCALAR(issaveseed, char)
     GET_SCALAR(issaveexit, char)
     GET_SCALAR(ismomentum, char)
+    GET_SCALAR(savedetflag, uint)
     GET_SCALAR(internalsrc, char)
     GET_SCALAR(issaveref, char)
     GET_SCALAR(srctype, char)
@@ -479,7 +483,7 @@ void* mcx_get_field(Config *cfg, const char *key, char** dtype, int* ndim, unsig
     GET_SCALAR(unitinmm, float)
     //GET_SCALAR(flog, FILE)
     //GET_SCALAR(his, History)
-    GET_MATRIX(exportdetected, float, cfg->medianum + 1 + (cfg->issaveexit > 0) * 6 + (cfg->ismomentum > 0) * (cfg->medianum - 1), cfg->detectedcount)
+    GET_MATRIX(exportdetected, float, hostdetreclen, cfg->detectedcount)
     GET_SCALAR(detectedcount, uint)
     GET_VECTOR(rootpath, char, MAX_PATH_LENGTH)
     //GET_VECTOR(shapedata, char, 0)
@@ -668,15 +672,16 @@ int mcx_validateconfig(Config *cfg, char **errmsg, int seedbyte, float *detps, i
         cfg->issaveexit=0;
         cfg->ismomentum=0;
     }
-     if(cfg->ismomentum) cfg->savedetflag=SET_SAVE_MOM(cfg->savedetflag);
+    if(cfg->issavedet) cfg->savedetflag=SET_SAVE_PPATH(cfg->savedetflag);
+    if(cfg->ismomentum) cfg->savedetflag=SET_SAVE_MOM(cfg->savedetflag);
 
-     if(cfg->issaveexit){
+    if(cfg->issaveexit){
         cfg->savedetflag=SET_SAVE_PEXIT(cfg->savedetflag);
 	    cfg->savedetflag=SET_SAVE_VEXIT(cfg->savedetflag);
      }
-     if(cfg->issavedet && cfg->savedetflag==0) cfg->savedetflag=0x5;
+    if(cfg->issavedet && cfg->savedetflag==0) cfg->savedetflag=0x5;
 
-     if(cfg->mediabyte>=100){
+    if(cfg->mediabyte>=100){
 	     cfg->savedetflag=UNSET_SAVE_NSCAT(cfg->savedetflag);
 	     cfg->savedetflag=UNSET_SAVE_PPATH(cfg->savedetflag);
 	     cfg->savedetflag=UNSET_SAVE_MOM(cfg->savedetflag);
