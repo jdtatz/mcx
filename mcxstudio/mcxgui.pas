@@ -33,8 +33,10 @@ type
     ckSharedFS: TCheckBox;
     ckShowProgress: TCheckBox;
     edCmdInput: TEdit;
+    edBenchmark: TComboBox;
     edRemote: TComboBox;
     Image1: TImage;
+    Label19: TLabel;
     Label5: TLabel;
     mcxdoConfig: TAction;
     ckbDet: TCheckListBox;
@@ -82,6 +84,7 @@ type
     MenuItem69: TMenuItem;
     MenuItem70: TMenuItem;
     MenuItem71: TMenuItem;
+    miExportJSON: TMenuItem;
     miClearLog: TMenuItem;
     miCopy: TMenuItem;
     mmOutput: TSynEdit;
@@ -91,6 +94,7 @@ type
     PopupMenu3: TPopupMenu;
     PopupMenu4: TPopupMenu;
     plSetting: TScrollBox;
+    rbUseBench: TRadioButton;
     shapePreview: TAction;
     edOutputFormat: TComboBox;
     Label11: TLabel;
@@ -210,7 +214,6 @@ type
     grBasic: TGroupBox;
     grGPU: TGroupBox;
     grSwitches: TGroupBox;
-    hcToolbar: THeaderControl;
     ImageList2: TImageList;
     Label1: TLabel;
     Label10: TLabel;
@@ -363,6 +366,7 @@ type
     procedure mcxdoWebURLExecute(Sender: TObject);
     procedure mcxSetCurrentExecute(Sender: TObject);
     procedure MenuItem22Click(Sender: TObject);
+    procedure miExportJSONClick(Sender: TObject);
     procedure miClearLogClick(Sender: TObject);
     procedure miCopyClick(Sender: TObject);
     procedure miUseMatlabClick(Sender: TObject);
@@ -473,6 +477,7 @@ var
   GotoGBox: TGroupBox;
   CurrentSession: TListItem;
   BCItemProp: TItemProp;
+  UseUserFolder: Boolean;
 
 implementation
 
@@ -852,7 +857,8 @@ begin
       ckbDet.Checked[0]:=true;
       ckbDet.Checked[2]:=true;
       edOutputType.ItemIndex:=0;
-      edOutputFormat.ItemIndex:=1;
+      edOutputFormat.ItemIndex:=0;
+      edBenchmark.ItemIndex:=0;
       vlBC.Values['x-'] := 'absorb';
       vlBC.Values['x+'] := 'absorb';
       vlBC.Values['y-'] := 'absorb';
@@ -1035,7 +1041,7 @@ begin
         //mcxdoQuery.Enabled:=true;
         ckSrcFrom0.Visible:=true;
         ckSaveMask.Visible:=true;
-        edOutputFormat.ItemIndex:=1;
+        edOutputFormat.ItemIndex:=0;
         grArray.Enabled:=true;
         edGate.Enabled:=true;
         edDetectedNum.Enabled:=true;
@@ -1045,7 +1051,7 @@ begin
         tabVolumeDesigner.Enabled:=false;
         ckSpecular.Visible:=true;
         //ckSaveRef.Visible:=false;
-        edOutputFormat.ItemIndex:=4;
+        edOutputFormat.ItemIndex:=6;
         edRespin.Hint:='BasicOrder';
         lbRespin.Caption:='Element order (-C)';
         edBubble.Hint:='DebugPhoton';
@@ -1110,7 +1116,7 @@ function TfmMCX.CreateSSHDownloadCmd(suffix: string='.nii'): string;
 var
    rootpath, localfile, remotefile, url, cmd, scpcmd: string;
 begin
-   rootpath:='Output'+'/'+CreateCmdOnly+'sessions'+'/'+Trim(edSession.Text);
+   rootpath:='MCXOutput'+'/'+CreateCmdOnly+'sessions'+'/'+Trim(edSession.Text);
    localfile:=CreateWorkFolder(edSession.Text, true)+DirectorySeparator+edSession.Text+suffix;
    remotefile:=rootpath+'/'+edSession.Text+suffix;
    scpcmd:=edRemote.Text;
@@ -1447,6 +1453,11 @@ begin
        exit;
     if(ResetMCX(0)) then begin
         fullcmd:=CreateCmd(pMCX);
+        if(Sender=miExportJSON) then begin
+            pMCX.Parameters.Add('--dumpjson');
+            pMCX.Parameters.Add(edSession.Text+'_input.json');
+            AddLog(pMCX.Executable+' '+pMCX.Parameters.CommaText);
+        end;
         pMCX.CurrentDirectory:=ExtractFilePath(SearchForExe(CreateCmdOnly));
         AddLog('"-- Executing Simulation --"');
         if(ckbDebug.Checked[2]) then begin
@@ -1529,6 +1540,9 @@ begin
         exit;
         {$ELSE}
         pMCX.Execute;
+        Sleep(50);
+        if(not pMCX.Running) then
+           pMCXTerminate(pMCX);
         {$ENDIF}
         Application.ProcessMessages;
     end;
@@ -1609,7 +1623,7 @@ end;
 procedure TfmMCX.FormCreate(Sender: TObject);
 var
     i: integer;
-    BrowserPath,BrowserParams: string;
+    BrowserPath,BrowserParams, workdir: string;
 begin
   {$IFDEF WINDOWS}
   with TRegistry.Create do
@@ -1633,9 +1647,6 @@ begin
     finally
       Free;
     end;
-    hcToolbar.Sections[0].MaxWidth:=hcToolbar.Sections[0].MaxWidth+2;
-    hcToolbar.Sections[0].Width:=hcToolbar.Sections[0].Width+2;
-    hcToolbar.Sections[0].MinWidth:=hcToolbar.Sections[0].MinWidth+2;
   {$ENDIF}
 
   {$IFDEF DARWIN}
@@ -1691,6 +1702,14 @@ begin
     LoadJSONShapeTree('[{"Grid":{"Tag":1,"Size":[60,60,60]}}]');
     if(Application.HasOption('p','project')) then
         LoadTasksFromIni(Application.GetOptionValue('p', 'project'));
+    UseUserFolder:=false;
+    if(Application.HasOption('u','user')) then
+        UseUserFolder:=true;
+    workdir:=GetAppRoot + 'MCXOutput';
+    if(not DirectoryExists(workdir)) then
+        ForceDirectories(workdir);
+    if(not DirectoryExists(workdir)) then
+        UseUserFolder:=true;
 end;
 
 procedure TfmMCX.FormDestroy(Sender: TObject);
@@ -1885,7 +1904,13 @@ end;
 procedure TfmMCX.MenuItem22Click(Sender: TObject);
 begin
   if(lvJobs.Selected <> nil) then
-      RunExternalCmd('"'+GetFileBrowserPath + '" "'+CreateWorkFolder(lvJobs.Selected.Caption, false)+'"');
+      RunExternalCmd('"'+GetFileBrowserPath + '" "'+CreateWorkFolder(lvJobs.Selected.Caption, true)+'"');
+end;
+
+procedure TfmMCX.miExportJSONClick(Sender: TObject);
+begin
+  if(lvJobs.Selected <> nil) then
+      mcxdoRunExecute(miExportJSON);
 end;
 
 procedure TfmMCX.miClearLogClick(Sender: TObject);
@@ -2641,7 +2666,7 @@ begin
     if(proc=pMCX) and (pMCX.Tag=-1) then begin
         UpdateGPUList(Buffer);
     end;
-    Sleep(100);
+    Sleep(500);
 end;
 
 procedure TfmMCX.SaveTasksToIni(fname: string);
@@ -2915,8 +2940,13 @@ function TfmMCX.CreateWorkFolder(session: string; iscreate: boolean=true) : stri
 var
     path: string;
 begin
-    path:=GetAppRoot
-       +'Output'+DirectorySeparator+CreateCmdOnly+'sessions'+DirectorySeparator+session;
+    if(UseUserFolder) then
+        path:=GetUserDir
+           +'MCXOutput'+DirectorySeparator+CreateCmdOnly+'sessions'+DirectorySeparator+session
+    else
+        path:=GetAppRoot
+            +'MCXOutput'+DirectorySeparator+CreateCmdOnly+'sessions'+DirectorySeparator+session;
+
     if fmConfig.ckUseManualPath.Checked then begin
          path:=fmConfig.edWorkPath.Text;
          path:=ExpandPathMacro(path,session);
@@ -2928,11 +2958,10 @@ begin
     if(iscreate) then begin
         try
           if(not DirectoryExists(path)) then
-               if( not ForceDirectories(path) ) then
-                   raise Exception.Create('Can not create session output folder');
+              ForceDirectories(path);
         except
-          On E : Exception do
-              MessageDlg('Input Error', E.Message, mtError, [mbOK],0);
+              On E : Exception do
+                  MessageDlg('Input Error', E.Message, mtError, [mbOK],0);
         end;
     end;
 end;
@@ -2964,6 +2993,12 @@ begin
         proc.Executable:=cmd;
         proc.Parameters.Clear;
     end;
+
+    if(rbUseBench.Checked) then begin
+        param.Add('--bench');
+        param.Add(edBenchmark.Text);
+    end;
+
     if(Length(edSession.Text)>0) then begin
         param.Add('--session');
         param.Add(Trim(edSession.Text));
@@ -2994,7 +3029,7 @@ begin
         rootpath:=sgConfig.Cells[2,14];
     if(ckDoRemote.Checked) then begin
         if(rootpath='') then
-            rootpath:='Output'+'/'+CreateCmdOnly+'sessions'+'/'+Trim(edSession.Text);
+            rootpath:='MCXOutput'+'/'+CreateCmdOnly+'sessions'+'/'+Trim(edSession.Text);
     end;
     param.Add('--root');
     param.Add(rootpath);
