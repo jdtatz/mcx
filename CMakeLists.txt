@@ -1,7 +1,10 @@
-cmake_minimum_required(VERSION 3.9)
+cmake_minimum_required(VERSION 3.12)
 project(MCX LANGUAGES C CXX CUDA)
 
 set(PACKAGE_VERSION "0.0.1")
+
+add_subdirectory(src/ubj)
+add_subdirectory(src/zmat)
 
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -74,13 +77,14 @@ SET (SRCS src/mcx_core.cu src/mcx_core.h
         src/mcx_utils.c src/mcx_utils.h
         src/mcx_shapes.c src/mcx_shapes.h
         src/tictoc.c src/tictoc.h
-        src/cjson/cJSON.c src/cjson/cJSON.h)
+        src/cjson/cJSON.c src/cjson/cJSON.h
+        )
 
 add_library(libmcx SHARED src/mcx_ffi.c src/mcx_ffi.h ${SRCS})
 add_executable(mcx src/mcextreme.c ${SRCS})
 
-target_link_libraries(libmcx ${OpenMP_CXX_LIBRARIES})
-target_link_libraries(mcx ${OpenMP_CXX_LIBRARIES})
+target_link_libraries(libmcx ${OpenMP_CXX_LIBRARIES} ubj zmat)
+target_link_libraries(mcx ${OpenMP_CXX_LIBRARIES} ubj zmat)
 
 find_package(MATLAB COMPONENTS MEX_COMPILER)
 if(MATLAB_found)
@@ -89,8 +93,8 @@ endif()
 
 SET_TARGET_PROPERTIES(libmcx PROPERTIES PREFIX "")
 
-find_package(PythonInterp 3)
-if(PYTHONINTERP_FOUND)
+find_package(Python3 COMPONENTS Interpreter)
+if(Python3_Interpreter_FOUND)
     set(SETUP_PY_IN "${CMAKE_SOURCE_DIR}/setup.py.in")
     set(SETUP_PY "${CMAKE_BINARY_DIR}/setup.py")
     set(OUTPUT "${CMAKE_BINARY_DIR}/pymcx_timestamp")
@@ -100,7 +104,7 @@ if(PYTHONINTERP_FOUND)
     add_custom_command(OUTPUT ${OUTPUT} DEPENDS libmcx "${CMAKE_SOURCE_DIR}/pymcx/__init__.py"
         COMMAND "${CMAKE_COMMAND}" -E copy "$<TARGET_FILE:libmcx>" "${CMAKE_BINARY_DIR}/pymcx/$<TARGET_FILE_NAME:libmcx>"
         COMMAND "${CMAKE_COMMAND}" -E copy "${CMAKE_SOURCE_DIR}/pymcx/__init__.py" "${CMAKE_BINARY_DIR}/pymcx/__init__.py"
-        COMMAND "${PYTHON_EXECUTABLE}" "setup.py" "build" "-bbuild_pymcx" "bdist_wheel" "-bbuild_pymcx_whl"
+        COMMAND "${Python3_EXECUTABLE}" "setup.py" "build" "-bbuild_pymcx" "bdist_wheel" "-bbuild_pymcx_whl"
         COMMAND ${CMAKE_COMMAND} -E touch ${OUTPUT}
     )
 

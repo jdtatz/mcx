@@ -8,7 +8,7 @@
  * Igor Pavlov for his hard, high quality work.
  */
 
-#include "easylzma/compress.h"
+#include "compress.h"
 #include "lzma_header.h"
 #include "lzip_header.h"
 #include "common_internal.h"

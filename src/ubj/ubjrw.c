@@ -27,7 +27,7 @@ static UBJ_TYPE compute_best_integer_type(ubjr_dynamic_t* vals, size_t sz)
 	size_t i;
 	for (i = 0; i < sz; i++)
 	{
-		typemask |= 1UL << ubjw_min_integer_type(vals[i].data.integer);
+		typemask |= 1UL << ubjw_min_integer_type(vals[i].integer);
 	}
 	return typemask2type(typemask);
 }
@@ -36,7 +36,7 @@ static uint32_t compute_best_string_type(ubjr_dynamic_t* vals, size_t sz)
 	size_t i;
 	for (i = 0; i < sz; i++)
 	{
-		if (strlen(vals[i].data.string) > 1)
+		if (strlen(vals[i].string) > 1)
 		{
 			return UBJ_STRING;
 		}

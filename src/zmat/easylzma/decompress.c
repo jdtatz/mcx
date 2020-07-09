@@ -8,7 +8,7 @@
  * Igor Pavlov for his hard, high quality work.
  */
 
-#include "easylzma/decompress.h"
+#include "decompress.h"
 #include "pavlov/LzmaDec.h"
 #include "pavlov/7zCrc.h"
 #include "common_internal.h"

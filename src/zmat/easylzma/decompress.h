@@ -13,7 +13,7 @@
 #ifndef __EASYLZMADECOMPRESS_H__ 
 #define __EASYLZMADECOMPRESS_H__ 
 
-#include "easylzma/common.h"
+#include "common.h"
 
 #ifdef __cplusplus
 extern "C" {
