@@ -1,11 +1,6 @@
-from setuptools import setup, Distribution
+#!/usr/bin/env python3
+from skbuild import setup
 import platform
-
-
-class BinaryDistribution(Distribution):
-    def has_ext_modules(self):
-        return True
-
 
 if platform.system() == 'Windows':
     libname = 'libmcx.dll'
@@ -17,7 +12,7 @@ else:
 
 setup(
     name='pymcx',
-    version='${PACKAGE_VERSION}',
+    version='0.1.1',
     description='MCX Library',
     author='Qianqian Fang',
     url='https://github.com/fangq/mcx',
@@ -26,5 +21,5 @@ setup(
     package_data={'pymcx': [libname]},
     include_package_data=True,
     zip_safe=False,
-    distclass=BinaryDistribution
+    cmake_languages=("C", "CXX", "CUDA"),
 )
