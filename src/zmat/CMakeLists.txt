@@ -8,6 +8,8 @@ cmake_minimum_required(VERSION 3.3)
 
 project(zmat)
 
+cmake_policy(SET CMP0076 NEW)
+
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 find_package(ZLIB REQUIRED)
@@ -27,7 +29,8 @@ include_directories(easylzma/pavlov)
 
 # Add all project units
 
-add_library(zmat OBJECT
+add_library(zmat INTERFACE)
+target_sources(zmat INTERFACE
     zmatlib.c
     lz4/lz4.c
     lz4/lz4hc.c
@@ -45,9 +48,10 @@ add_library(zmat OBJECT
     easylzma/pavlov/Alloc.c
     easylzma/pavlov/7zCrc.c
 )
+target_compile_definitions(zmat INTERFACE "LZ4LIB_VISIBILITY=\t")
 
 # Link options
-target_link_libraries(zmat PUBLIC ZLIB::ZLIB)
+target_link_libraries(zmat INTERFACE ZLIB::ZLIB)
 
 if(Matlab_FOUND)
     matlab_add_mex(

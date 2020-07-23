@@ -6,7 +6,7 @@
 #ifdef _WIN32
 #define MCX_EXPORT  __declspec( dllexport )
 #else
-#define MCX_EXPORT
+#define MCX_EXPORT __attribute__((visibility("default")))
 #endif
 
 #ifdef __cplusplus
