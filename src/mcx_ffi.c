@@ -222,7 +222,7 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
             *err = strLenErr;
             return -1;
         }
-        const char *srctypeid[]={"pencil","isotropic","cone","gaussian","planar","pattern","fourier","arcsine","disk","fourierx","fourierx2d","zgaussian","line","slit","pencilarray",""};
+        const char *srctypeid[]={"pencil","isotropic","cone","gaussian","planar","pattern","fourier","arcsine","disk","fourierx","fourierx2d","zgaussian","line","slit","pencilarray","pattern3d","diskarray",""};
         int srctype = mcx_keylookup((char*)value,srctypeid);
         static char * srcTypErr = "the specified source type is not supported";
         if(srctype == -1){

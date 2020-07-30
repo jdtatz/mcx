@@ -940,6 +940,51 @@ __device__ inline int launchnewphoton(MCXpos *p,MCXdir *v,MCXtime *f,float3* rv,
 		      }
 		      break;
 		  }
+		  case(MCX_SRC_DISKARRAY): {
+		      int i = rand_uniform01(t) * gcfg->srcparam1.x;
+              *((float4*)p)=float4(
+                      srcpattern[i * 7],
+                      srcpattern[i * 7 + 1],
+                      srcpattern[i * 7 + 2],
+                      p->w
+              );
+              *((float4*)v)=float4(
+                      srcpattern[i * 7 + 3],
+                      srcpattern[i * 7 + 4],
+                      srcpattern[i * 7 + 5],
+                      0.0
+              );
+              float radius = srcpattern[i * 7 + 6];
+
+              float sphi, cphi;
+              float phi=TWO_PI*rand_uniform01(t);
+              sincosf(phi,&sphi,&cphi);
+              float r = sqrtf(rand_uniform01(t))*radius;
+
+              if( v->z>-1.f+EPS && v->z<1.f-EPS ) {
+                  float tmp0=1.f-v->z*v->z;
+                  float tmp1=r*rsqrtf(tmp0);
+                  *((float4*)p)=float4(
+                          p->x+tmp1*(v->x*v->z*cphi - v->y*sphi),
+                          p->y+tmp1*(v->y*v->z*cphi + v->x*sphi),
+                          p->z-tmp1*tmp0*cphi                   ,
+                          p->w
+                  );
+                  GPUDEBUG(("new dir: %10.5e %10.5e %10.5e\n",v->x,v->y,v->z));
+              }else{
+                  p->x+=r*cphi;
+                  p->y+=r*sphi;
+                  GPUDEBUG(("new dir-z: %10.5e %10.5e %10.5e\n",v->x,v->y,v->z));
+              }
+              *idx1d=(int(floorf(p->z))*gcfg->dimlen.y+int(floorf(p->y))*gcfg->dimlen.x+int(floorf(p->x)));
+              if(p->x<0.f || p->y<0.f || p->z<0.f || p->x>=gcfg->maxidx.x || p->y>=gcfg->maxidx.y || p->z>=gcfg->maxidx.z){
+                  *mediaid=0;
+              }else{
+                  *mediaid=media[*idx1d];
+              }
+
+              break;
+		  }
 		case(MCX_SRC_CONE):
 		case(MCX_SRC_ISOTROPIC):
 		case(MCX_SRC_ARCSINE): {
@@ -1976,7 +2021,9 @@ void mcx_run_simulation(Config *cfg,GPUInfo *gpu){
          CUDA_ASSERT(cudaMalloc((void **) &gsrcpattern, sizeof(float)*(int)(cfg->srcparam1.w*cfg->srcparam2.w*cfg->srcnum)));
      else if(cfg->srctype==MCX_SRC_PATTERN3D)
          CUDA_ASSERT(cudaMalloc((void **) &gsrcpattern, sizeof(float)*(int)(cfg->srcparam1.x*cfg->srcparam1.y*cfg->srcparam1.z*cfg->srcnum)));
-	 
+     else if(cfg->srctype==MCX_SRC_DISKARRAY)
+         CUDA_ASSERT(cudaMalloc((void **) &gsrcpattern, sizeof(float)*((int)cfg->srcparam1.x*7)));
+
 #ifndef SAVE_DETECTORS
 #pragma omp master
      if(cfg->issavedet){
@@ -2042,12 +2089,14 @@ void mcx_run_simulation(Config *cfg,GPUInfo *gpu){
 
      CUDA_ASSERT(cudaMemcpy(gmedia, media, sizeof(uint)*cfg->dim.x*cfg->dim.y*cfg->dim.z, cudaMemcpyHostToDevice));
      CUDA_ASSERT(cudaMemcpy(genergy,energy,sizeof(float) *(gpu[gpuid].autothread<<1), cudaMemcpyHostToDevice));
-     if(cfg->srcpattern)
+     if(cfg->srcpattern) {
         if(cfg->srctype==MCX_SRC_PATTERN)
            CUDA_ASSERT(cudaMemcpy(gsrcpattern,cfg->srcpattern,sizeof(float)*(int)(cfg->srcparam1.w*cfg->srcparam2.w*cfg->srcnum), cudaMemcpyHostToDevice));
 	else if(cfg->srctype==MCX_SRC_PATTERN3D)
 	   CUDA_ASSERT(cudaMemcpy(gsrcpattern,cfg->srcpattern,sizeof(float)*(int)(cfg->srcparam1.x*cfg->srcparam1.y*cfg->srcparam1.z*cfg->srcnum), cudaMemcpyHostToDevice));
-     
+	else if(cfg->srctype==MCX_SRC_DISKARRAY)
+            CUDA_ASSERT(cudaMemcpy(gsrcpattern,cfg->srcpattern,sizeof(float)*((int)cfg->srcparam1.x*7), cudaMemcpyHostToDevice));
+     }
 
      CUDA_ASSERT(cudaMemcpyToSymbol(gproperty, cfg->prop,  cfg->medianum*sizeof(Medium), 0, cudaMemcpyHostToDevice));
      CUDA_ASSERT(cudaMemcpyToSymbol(gproperty, cfg->detpos,  cfg->detnum*sizeof(float4), cfg->medianum*sizeof(Medium), cudaMemcpyHostToDevice));
