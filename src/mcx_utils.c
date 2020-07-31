@@ -679,7 +679,7 @@ void mcx_savejnii(float *vol, int ndim, uint *dims, float *voxelsize, char* name
 void mcx_savedata(float *dat, size_t len, Config *cfg){
      FILE *fp;
      char name[MAX_FULL_PATH];
-     char fname[MAX_FULL_PATH];
+     char fname[MAX_FULL_PATH + 4];
      unsigned int glformat=GL_RGBA32F;
 
      if(cfg->rootpath[0])
@@ -717,7 +717,7 @@ void mcx_savedata(float *dat, size_t len, Config *cfg){
 	 }
          return;
      }
-     sprintf(fname,"%s.%s",name,outputformat[(int)cfg->outputformat]);
+     snprintf(fname, MAX_FULL_PATH + 4, "%s.%s",name,outputformat[(int)cfg->outputformat]);
      fp=fopen(fname,"wb");
 
      if(fp==NULL){
@@ -1329,9 +1329,9 @@ void mcx_loadconfig(FILE *in, Config *cfg){
      MCX_ASSERT(fscanf(in,"%s", filename)==1);
      if(cfg->rootpath[0]){
 #ifdef WIN32
-         sprintf(comment,"%s\\%s",cfg->rootpath,filename);
+         snprintf(comment, MAX_PATH_LENGTH, "%s\\%s",cfg->rootpath,filename);
 #else
-         sprintf(comment,"%s/%s",cfg->rootpath,filename);
+         snprintf(comment, MAX_PATH_LENGTH, "%s/%s",cfg->rootpath,filename);
 #endif
          strncpy(filename,comment,MAX_PATH_LENGTH);
      }
