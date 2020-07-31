@@ -1612,7 +1612,8 @@ int mcx_corecount(int v1, int v2){
      else if(v<21) return 32;
      else if(v<30) return 48;
      else if(v<50) return 192;
-     else          return 128;
+     else if(v<60 || v==61) return 128;
+     else          return 64;
 }
 
 /**
@@ -1692,10 +1693,10 @@ int mcx_list_gpu(Config *cfg, GPUInfo **info){
 	    MCX_FPRINTF(stdout,S_BLUE"=============================   GPU Infomation  ================================\n" S_RESET);
 	    MCX_FPRINTF(stdout,"Device %d of %d:\t\t%s\n",(*info)[dev].id,(*info)[dev].devcount,(*info)[dev].name);
 	    MCX_FPRINTF(stdout,"Compute Capability:\t%u.%u\n",(*info)[dev].major,(*info)[dev].minor);
-	    MCX_FPRINTF(stdout,"Global Memory:\t\t%u B\nConstant Memory:\t%u B\n"
-				"Shared Memory:\t\t%u B\nRegisters:\t\t%u\nClock Speed:\t\t%.2f GHz\n",
-               (unsigned int)(*info)[dev].globalmem,(unsigned int)(*info)[dev].constmem,
-               (unsigned int)(*info)[dev].sharedmem,(unsigned int)(*info)[dev].regcount,(*info)[dev].clock*1e-6f);
+	    MCX_FPRINTF(stdout,"Global Memory:\t\t%.0f B\nConstant Memory:\t%.0f B\n"
+				"Shared Memory:\t\t%.0f B\nRegisters:\t\t%u\nClock Speed:\t\t%.2f GHz\n",
+               (double)(*info)[dev].globalmem,(double)(*info)[dev].constmem,
+               (double)(*info)[dev].sharedmem,(unsigned int)(*info)[dev].regcount,(*info)[dev].clock*1e-6f);
 	  #if CUDART_VERSION >= 2000
 	       MCX_FPRINTF(stdout,"Number of MPs:\t\t%u\nNumber of Cores:\t%u\n",
 	          (*info)[dev].sm,(*info)[dev].core);
@@ -2165,7 +2166,11 @@ void mcx_run_simulation(Config *cfg,GPUInfo *gpu){
            mcx_flush(cfg);
 
            int isinternal=((cfg->internalsrc>0) || (param.mediaidorig && (cfg->srctype==MCX_SRC_PENCIL || cfg->srctype==MCX_SRC_CONE || cfg->srctype==MCX_SRC_ISOTROPIC)));
-	   switch(isinternal*100 + (cfg->isreflect>0)*10+(cfg->mediabyte<=4)){
+	   int isref=cfg->isreflect;
+	   for(i=0;i<6;i++)
+	       if(cfg->bc[i]==1)
+	           isref=1;
+	   switch(isinternal*100 + (isref>0)*10+(cfg->mediabyte<=4)){
 	       case 0:  mcx_main_loop<0,0,0> <<<mcgrid,mcblock,sharedbuf>>>(gmedia,gfield,genergy,gPseed,gPpos,gPdir,gPlen,gPdet,gdetected,gsrcpattern,greplayw,greplaytof,greplaydetid,gseeddata,gdebugdata,gprogress);break;
 	       case 1:  mcx_main_loop<0,0,1> <<<mcgrid,mcblock,sharedbuf>>>(gmedia,gfield,genergy,gPseed,gPpos,gPdir,gPlen,gPdet,gdetected,gsrcpattern,greplayw,greplaytof,greplaydetid,gseeddata,gdebugdata,gprogress);break;
 	       case 10: mcx_main_loop<0,1,0> <<<mcgrid,mcblock,sharedbuf>>>(gmedia,gfield,genergy,gPseed,gPpos,gPdir,gPlen,gPdet,gdetected,gsrcpattern,greplayw,greplaytof,greplaydetid,gseeddata,gdebugdata,gprogress);break;
