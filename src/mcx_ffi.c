@@ -253,7 +253,12 @@ int mcx_set_field(Config * cfg, const char *key, const void *value, const char *
         }
         if(cfg->srcpattern) free(cfg->srcpattern);
         cfg->srcpattern = malloc(dims[0]*dims[1]*sizeof(float));
-        SET_MATRIX(cfg->srcpattern, F)
+        // TODO Conserve ordering?
+        if(*order=='C') {
+            TYPE_SAFE_PTR_SETTER(cfg->srcpattern, SET_MATRIX_2C)
+        } else {
+            TYPE_SAFE_PTR_SETTER(cfg->srcpattern, SET_MATRIX_2F)
+        }
     }else if(strcmp(key,"shapes")==0){
         if(strcmp(dtype, "string") != 0){
             *err = typeErr;

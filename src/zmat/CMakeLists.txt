@@ -13,13 +13,6 @@ cmake_policy(SET CMP0076 NEW)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 find_package(ZLIB REQUIRED)
-#find_package(Matlab)
-
-# option(STATIC_LIB "Build static library" ON)
-
-# C Options
-# set(CMAKE_C_FLAGS "-g -Wall -O3 -fPIC")
-# set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/../)
 
 # Add include directories
 #include_directories(./)
@@ -48,9 +41,9 @@ target_sources(zmat INTERFACE
     easylzma/pavlov/Alloc.c
     easylzma/pavlov/7zCrc.c
 )
+# Needed to prevent lz4 lib from overriding visibility presets
 target_compile_definitions(zmat INTERFACE "LZ4LIB_VISIBILITY=\t")
 
-# Link options
 target_link_libraries(zmat INTERFACE ZLIB::ZLIB)
 
 if(Matlab_FOUND)
