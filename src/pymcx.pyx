@@ -1,5 +1,15 @@
 from libc.stdio cimport FILE, stderr, fprintf
 from libc.setjmp cimport setjmp, jmp_buf
+from openmp cimport omp_set_num_threads
+from cython.parallel cimport parallel, prange
+from cython cimport view
+import os, sys
+from contextlib import contextmanager
+from enum import IntEnum, IntFlag
+import numpy as np
+
+__all__ = ['MCX', 'MCXRunException', 'SaveFlags', 'SrcType']
+
 
 cdef extern from "<vector_types.h>":
     ctypedef struct uint3:
@@ -45,6 +55,7 @@ cdef extern from "mcx_utils.h":
         float sradius
         Medium* prop
         float4* detpos
+        int maxgate
 
         int gpuid
         unsigned int *vol
@@ -117,9 +128,6 @@ cdef extern from "mcx_core.h":
     void mcx_run_simulation(Config *cfg,GPUInfo *gpu) nogil
 
 
-from openmp cimport omp_set_num_threads
-from cython.parallel cimport parallel, prange
-
 cdef int mcx_wrapped_run_simulation_inner(Config *cfg, GPUInfo *gpuinfo) nogil:
     cdef jmp_buf errHandler
     cdef int jmp_flag
@@ -134,7 +142,6 @@ cdef int mcx_wrapped_run_simulation_inner(Config *cfg, GPUInfo *gpuinfo) nogil:
     return jmp_flag
 
 cdef int mcx_wrapped_run_simulation(Config *cfg):
-    cfg.isgpuinfo = 3
     cdef GPUInfo *gpuinfo
     cdef Py_ssize_t i
     cdef int activedev = mcx_list_gpu(cfg, &gpuinfo)
@@ -144,7 +151,7 @@ cdef int mcx_wrapped_run_simulation(Config *cfg):
         fprintf(stderr, "\nMCX ERROR: No active GPU device found\n")
         mcx_cleargpuinfo(&gpuinfo)
         return -1
-    errorflags = view.array(shape=activedev, itemsize=sizeof(int), format="i", mode="c", allocate_buffer=True)
+    errorflags = view.array(shape=(activedev,), itemsize=sizeof(int), format="i", mode="c", allocate_buffer=True)
 
     omp_set_num_threads(activedev)
     for i in prange(activedev, nogil=True, num_threads=activedev):
@@ -156,14 +163,6 @@ cdef int mcx_wrapped_run_simulation(Config *cfg):
             return flag
     return 0
 
-from cython cimport view
-import os, sys
-from contextlib import contextmanager
-import numpy as np
-
-from enum import IntEnum as _IntEnum, IntFlag as _IntFlag
-
-__all__ = ['MCX', 'MCXRunException', 'SaveFlags', 'SrcType']
 
 @contextmanager
 def _grab_fstream(stream):
@@ -183,7 +182,7 @@ def _grab_fstream(stream):
     os.close(copy)
 
 
-class SrcType(_IntEnum):
+class SrcType(IntEnum):
     PENCIL = 0
     ISOTROPIC = 1
     CONE = 2
@@ -203,7 +202,7 @@ class SrcType(_IntEnum):
     DISKARRAY = 16
 
 
-class SaveFlags(_IntFlag):
+class SaveFlags(IntFlag):
     DetectorId = 1
     NScatters = 2
     PartialPath = 4
@@ -216,7 +215,7 @@ class SaveFlags(_IntFlag):
 class MCXRunException(Exception):
     def __init__(self, stdout, stderr, flag):
         self.stdout, self.stderr, self.flag = stdout, stderr, flag
-        super(MCXRunException, self).__init__('RunTime error: "{}" with stderr\n'.format(flag, stderr))
+        super(MCXRunException, self).__init__('RunTime error: "{}" with stderr\n{}'.format(flag, stderr))
 
 
 cdef class MCX:
@@ -269,13 +268,14 @@ cdef class MCX:
                 self.prop[i, 0] *= self.config.unitinmm
                 self.prop[i, 1] *= self.config.unitinmm
 
-        # Do not give type to Index
-        self.prop[~((self.prop[:, 1]).astype(bool))] = 1e-5
+        for i in range(self.prop.shape[0]):
+            if self.prop[i, 1] == 0:
+                self.prop[i, 1] = 1e-5
 
         if self.config.issave2pt:
             ntimegate = self.time_gates
-            self.maxgate = self.time_gates()
-            self.fluence = np.zeros((self.vol.shape[0], self.vol.shape[1], self.vol.shape[2], self.vol.shape[3]), dtype=np.float32, order='F')
+            self.config.maxgate = self.time_gates
+            self.fluence = np.zeros((self.vol.shape[0], self.vol.shape[1], self.vol.shape[2], ntimegate), dtype=np.float32, order='F')
             self.exportfield = self.fluence
             self.config.exportfield = &self.exportfield[0,0,0,0]
         if self.config.issavedet or self.savedetflag:
@@ -386,7 +386,7 @@ cdef class MCX:
 
     @property
     def time_gates(self):
-        return <int> np.ceil((self.config.tend - self.confiig.tstart) / self.config.tstep)
+        return <int> np.ceil((self.config.tend - self.config.tstart) / self.config.tstep)
 
     @property
     def prop(self):
@@ -425,11 +425,11 @@ cdef class MCX:
         self.config.vol = &self.volume[0,0,0]
 
     @property
-    def save_det_flags(self):
+    def savedetflag(self):
         return SaveFlags(self.config.savedetflag)
 
-    @save_det_flags.setter
-    def save_det_flags(self, value):
+    @savedetflag.setter
+    def savedetflag(self, value):
         self.config.savedetflag = value
 
     @property
@@ -508,3 +508,11 @@ cdef class MCX:
     @autopilot.setter
     def autopilot(self, bint value: bool):
         self.config.autopilot = value
+
+    @property
+    def unitinmm(self):
+        return self.config.unitinmm
+
+    @unitinmm.setter
+    def unitinmm(self, value):
+        self.config.unitinmm = value
