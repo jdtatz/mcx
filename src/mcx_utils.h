@@ -50,6 +50,16 @@
   #define MCX_CUDA_ARCH       100                        /**< fallback CUDA version */
 #endif
 
+#if defined(USE_XOROSHIRO128P_RAND)
+#define RAND_WORD_LEN 4
+#elif defined(USE_LL5_RAND)
+#define RAND_WORD_LEN 5
+#elif defined(USE_POSIX_RAND)
+#define RAND_WORD_LEN 4
+#else
+#define RAND_WORD_LEN 4       /**< number of Words per RNG state */
+#endif
+
 #define MCX_ERROR(id,msg)   mcx_error(id,msg,__FILE__,__LINE__)  /**< macro for error handling */
 #define MIN(a,b)           ((a)<(b)?(a):(b))             /**< macro to get the min values of two numbers */
 #define MAX(a,b)           ((a)>(b)?(a):(b))             /**< macro to get the max values of two numbers */

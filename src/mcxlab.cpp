@@ -40,14 +40,10 @@
   #include <omp.h>
 #endif
 
-#if defined(USE_XOROSHIRO128P_RAND)
-    #define RAND_WORD_LEN 4
-#elif defined(USE_LL5_RAND)
-    #define RAND_WORD_LEN 5
-#elif defined(USE_POSIX_RAND)
-    #define RAND_WORD_LEN 4
+#ifdef _WIN32
+#define MCX_EXPORT  __declspec( dllexport )
 #else
-    #define RAND_WORD_LEN 4       /**< number of Words per RNG state */
+#define MCX_EXPORT __attribute__((visibility("default")))
 #endif
 
 /**<  Macro to read the 1st scalar cfg member */
@@ -91,7 +87,7 @@ int    seedbyte=0;
  *  simuation parameters and data.
  */
 
-void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]){
+MCX_EXPORT void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]){
   Config cfg;
   GPUInfo *gpuinfo=NULL;
   mxArray    *tmp;
