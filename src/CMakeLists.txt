@@ -98,5 +98,5 @@ if(SKBUILD)
     add_library(pymcx MODULE ${cymcx} ${SRCS})
     python_extension_module(pymcx)
     # Needed for scikit-build
-    install(TARGETS pymcx LIBRARY DESTINATION ".")
+    install(TARGETS pymcx LIBRARY DESTINATION "pymcx")
 endif()

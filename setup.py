@@ -9,6 +9,11 @@ setup(
     url='https://github.com/fangq/mcx',
     setup_requires=["scikit-build", "cmake", "cython"],
     install_requires=['numpy'],
+    include_package_data=False,
+    zip_safe=False,
+    python_requires=">=3.6",
+    packages=['pymcx'],
+    namespace_packages=['pymcx'],
     cmake_languages=("C", "CXX", "CUDA"),
     cmake_minimum_required_version="3.13",
 )
