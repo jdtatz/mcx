@@ -15,13 +15,9 @@ endif()
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     option(TEST_RACING "Test Racing Conditions" OFF)
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DMCX_DEBUG")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DMCX_DEBUG")
-    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -DMCX_DEBUG")
+    add_compile_definitions(MCX_DEBUG)
     if(TEST_RACING)
-        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DTEST_RACING")
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DTEST_RACING")
-        set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -DTEST_RACING")
+        add_compile_definitions(TEST_RACING)
     endif()
 else()
     set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
@@ -34,23 +30,23 @@ option(USE_HALF "Use half-precision for ray-tracing" OFF)
 option(EXCLUSIONARY_DETECTORS "Turn on ability to use exclusionary detectors" OFF)
 
 if(ATOMIC)
-    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -DUSE_ATOMIC")
+    add_compile_definitions(USE_ATOMIC)
 endif()
 
 if(CACHEBOX)
-    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -DUSE_CACHEBOX")
+    add_compile_definitions(USE_CACHEBOX)
 endif()
 
 if(SAVE_DETECTORS)
-    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -DSAVE_DETECTORS")
+    add_compile_definitions(SAVE_DETECTORS)
 endif()
 
 if(USE_HALF)
-    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -DUSE_HALF")
+    add_compile_definitions(USE_HALF)
 endif()
 
 if(EXCLUSIONARY_DETECTORS)
-    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -DEXCLUSIONARY_DETECTORS")
+    add_compile_definitions(EXCLUSIONARY_DETECTORS)
 endif()
 
 set(prngChoices "xorshiro128+" "xorshift128+" "POSIX erand48" "Mersenne Twister" "Logistic Lattice ring 5")
@@ -61,13 +57,13 @@ list(FIND prngChoices ${prng} index)
 if(index EQUAL -1)
     message(FATAL_ERROR "prng must be one of ${prngChoices}")
 elseif(index EQUAL 0)
-    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -DUSE_XOROSHIRO128P_RAND")
+    add_compile_definitions(USE_XOROSHIRO128P_RAND)
 elseif(index EQUAL 1)
-    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -DUSE_XORSHIFT128P_RAND")
+    add_compile_definitions(USE_XORSHIFT128P_RAND)
 elseif(index EQUAL 2)
-    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -DUSE_POSIX_RAND")
+    add_compile_definitions(USE_POSIX_RAND)
 elseif(index EQUAL 3)
-    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -DUSE_MT_RAND")
+    add_compile_definitions(USE_MT_RAND)
 endif()
 
 
@@ -86,14 +82,31 @@ SET (SRCS mcx_core.cu mcx_core.h
 
 add_executable(mcx mcextreme.c ${SRCS})
 
-find_package(MATLAB COMPONENTS MEX_COMPILER)
-if(MATLAB_found)
-    matlab_add_mex(mcxlab SHARED mcxlab.cpp ${SRCS})
+find_package(Matlab COMPONENTS MEX_COMPILER)
+if(Matlab_FOUND)
+    option(USE_MEX_COMPILER "Use matlab mex compiler" ON)
+    if(USE_MEX_COMPILER)
+        matlab_add_mex(NAME mcxlab MODULE SRC mcxlab.cpp ${SRCS} OUTPUT_NAME "mcx")
+    else()
+        add_library(mcxlab MODULE mcxlab.cpp ${SRCS})
+        target_include_directories(mcxlab PUBLIC ${Matlab_INCLUDE_DIRS})
+        target_link_libraries(mcxlab ${Matlab_MEX_LIBRARY} ${Matlab_MX_LIBRARY})
+        set_target_properties(mcxlab PROPERTIES
+                PREFIX ""
+                OUTPUT_NAME "mcx"
+                SUFFIX ".${Matlab_MEX_EXTENSION}"
+                C_VISIBILITY_PRESET hidden
+                CXX_VISIBILITY_PRESET hidden
+                CUDA_VISIBILITY_PRESET hidden
+                CMAKE_VISIBILITY_INLINES_HIDDEN TRUE
+                )
+    endif()
 endif()
 
 if(SKBUILD)
     find_package(PythonExtensions REQUIRED)
     find_package(Cython REQUIRED)
+    add_compile_definitions(NPY_NO_DEPRECATED_API=NPY_1_7_API_VERSION)
     add_cython_target(cymcx pymcx.pyx PY3)
     add_library(pymcx MODULE ${cymcx} ${SRCS})
     python_extension_module(pymcx)
