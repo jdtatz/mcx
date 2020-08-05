@@ -1,0 +1,20 @@
+[project]
+name = "pymcx"
+version = "0.4.7"
+# version = {use_scm = true}
+# dynamic = ["version"]
+description = "Python bindins to Monte Carlo eXtreme (MCX)"
+readme = "README.md"
+requires-python = ">=3.6"
+license = {file = "LICENSE.txt"}
+authors = [{name = "Qianqian Fang", email = "q.fang@neu.edu"}]
+urls = { repository = "http://github.com/fangq/mcx" }
+dependencies = [
+    "cffi>=1.14.2",
+    "numpy",
+    "typing_extensions>=3.7.4.3"
+]
+
+[build-system]
+build-backend = "setuptools.build_meta:__legacy__"
+requires = ["setuptools>=42", "wheel", "setuptools_scm[toml]>=3.4", "cffi>=1.14.2"]

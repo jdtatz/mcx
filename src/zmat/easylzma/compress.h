@@ -13,7 +13,7 @@
 #ifndef __EASYLZMACOMPRESS_H__ 
 #define __EASYLZMACOMPRESS_H__ 
 
-#include "easylzma/common.h"
+#include "common.h"
 #include <stdlib.h>
 
 #ifdef __cplusplus

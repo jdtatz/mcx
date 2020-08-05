@@ -32,6 +32,7 @@
 #define _MCEXTREME_UTILITIES_H
 
 #include <stdio.h>
+#include <setjmp.h>
 #include <vector_types.h>
 #include "br2cu.h"
 #include "cjson/cJSON.h"
@@ -54,12 +55,22 @@
   #define MCX_CUDA_ARCH       100                        /**< fallback CUDA version */
 #endif
 
+#if defined(USE_XOROSHIRO128P_RAND)
+#define RAND_WORD_LEN 4
+#elif defined(USE_LL5_RAND)
+#define RAND_WORD_LEN 5
+#elif defined(USE_POSIX_RAND)
+#define RAND_WORD_LEN 4
+#else
+#define RAND_WORD_LEN 4       /**< number of Words per RNG state */
+#endif
+
 #define MCX_ERROR(id,msg)   mcx_error(id,msg,__FILE__,__LINE__)  /**< macro for error handling */
 #define MIN(a,b)           ((a)<(b)?(a):(b))             /**< macro to get the min values of two numbers */
 #define MAX(a,b)           ((a)>(b)?(a):(b))             /**< macro to get the max values of two numbers */
 
 enum TOutputType {otFlux, otFluence, otEnergy, otJacobian, otWP, otDCS, otRF};   /**< types of output */
-enum TMCXParent  {mpStandalone, mpMATLAB};                          /**< whether MCX is run in binary or mex mode */
+enum TMCXParent  {mpStandalone, mpMATLAB, mpPy};                          /**< whether MCX is run in binary or mex mode */
 enum TOutputFormat {ofMC2, ofNifti, ofAnalyze, ofUBJSON, ofTX3, ofJNifti, ofBJNifti};           /**< output data format */
 enum TBoundary {bcUnknown, bcReflect, bcAbsorb, bcMirror, bcCyclic};            /**< boundary conditions */
 enum TBJData {JDB_mixed, JDB_nulltype, JDB_noop,JDB_true,JDB_false,
@@ -246,7 +257,9 @@ extern "C" {
 #endif
 void mcx_savedata(float *dat, size_t len, Config *cfg);
 void mcx_savenii(float *dat, size_t len, char* name, int type32bit, int outputformatid, Config *cfg);
+void mcx_set_error_handler(jmp_buf * bufp);
 void mcx_error(const int id,const char *msg,const char *file,const int linenum);
+int mcx_wrapped_run_simulation(Config *cfg);
 void mcx_loadconfig(FILE *in, Config *cfg);
 void mcx_saveconfig(FILE *in, Config *cfg);
 void mcx_readconfig(char *fname, Config *cfg);

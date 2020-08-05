@@ -1,1 +1,8 @@
 Rakefile
+*.o
+*.so
+*.dll
+*.dylib
+.*/
+_*/
+build/

@@ -1,7 +1,7 @@
 #ifndef __ELZMA_COMMON_INTERNAL_H__
 #define __ELZMA_COMMON_INTERNAL_H__
 
-#include "easylzma/common.h"
+#include "common.h"
 
 /** a structure which may be cast and passed into Igor's allocate
  *  routines */

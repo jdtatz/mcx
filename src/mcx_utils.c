@@ -35,7 +35,7 @@
 #include <ctype.h>
 #include <errno.h>
 
-#ifndef WIN32
+#ifndef _WIN32
   #include <sys/ioctl.h>
 #endif
 #include <sys/types.h>
@@ -752,7 +752,7 @@ void mcx_savedata(float *dat, size_t len, Config *cfg){
 	 }
          return;
      }
-     sprintf(fname,"%s.%s",name,outputformat[(int)cfg->outputformat]);
+     snprintf(fname, MAX_FULL_PATH + 4, "%s.%s",name,outputformat[(int)cfg->outputformat]);
      fp=fopen(fname,"wb");
 
      if(fp==NULL){
@@ -1023,6 +1023,21 @@ void mcx_flush(Config *cfg){
 #endif
 }
 
+static jmp_buf  * mcx_error_jmp_buf_env = NULL;  /**< jump buffer for C-syle error handling for shared libray*/
+#ifdef _OPENMP
+#pragma omp threadprivate(mcx_error_jmp_buf_env)
+#endif
+
+/**
+* @brief Function to set error handler
+*
+* @param[in] bufp: pointer to the jmp_buf error handling code
+*/
+
+void mcx_set_error_handler(jmp_buf * bufp) {
+	mcx_error_jmp_buf_env = bufp;
+}
+
 /**
  * @brief Error reporting function
  *
@@ -1036,13 +1051,17 @@ void mcx_error(const int id,const char *msg,const char *file,const int linenum){
 #ifdef MCX_CONTAINER
      mcx_throw_exception(id,msg,file,linenum);
 #else
-     MCX_FPRINTF(stdout,S_RED "\nMCX ERROR(%d):%s in unit %s:%d\n" S_RESET,id,msg,file,linenum);
+     MCX_FPRINTF(stderr,S_RED "\nMCX ERROR(%d):%s in unit %s:%d\n" S_RESET,id,msg,file,linenum);
      if(id==-CUDA_ERROR_LAUNCH_FAILED){
-         MCX_FPRINTF(stdout,S_RED "MCX is terminated by your graphics driver. If you use windows, \n\
+         MCX_FPRINTF(stderr,S_RED "MCX is terminated by your graphics driver. If you use windows, \n\
 please modify TdrDelay value in the registry. Please checkout FAQ #1 for more details:\n\
 URL: http://mcx.space/wiki/index.cgi?Doc/FAQ\n" S_RESET);
      }
-     exit(id);
+	if (mcx_error_jmp_buf_env == NULL) {
+		exit(id);
+	} else {
+		longjmp(*mcx_error_jmp_buf_env, id);
+	}
 #endif
 }
 
@@ -1078,6 +1097,36 @@ int mkpath(char* dir_path, int mode){
 
 void mcx_assert(int ret){
      if(!ret) MCX_ERROR(ret,"assert error");
+}
+
+
+int mcx_wrapped_run_simulation(Config *cfg) {
+    GPUInfo *gpuinfo;
+    int activedev = mcx_list_gpu(cfg, &gpuinfo);
+    if (activedev == 0) {
+        MCX_FPRINTF(stderr,S_RED "ERROR: No CUDA-capable GPU device found\n" S_RESET);
+        mcx_cleargpuinfo(&gpuinfo);
+        return -1;
+    }
+    int errorflag = 0;
+
+#pragma omp parallel num_threads(activedev) shared(cfg, gpuinfo, errorflag) default(none)
+    {
+        jmp_buf errHandler;
+        int jmp_flag = 0;
+        if ((jmp_flag = setjmp(errHandler)) == 0) {
+            mcx_set_error_handler(&errHandler);
+            mcx_run_simulation(cfg, gpuinfo);
+        } else {
+// Not Supported on Windows MSVC
+// #pragma omp atomic write
+#pragma omp critical
+            errorflag = jmp_flag;
+        }
+        mcx_set_error_handler(NULL);
+    }
+    mcx_cleargpuinfo(&gpuinfo);
+    return errorflag;
 }
 
 /**
@@ -1442,9 +1491,9 @@ void mcx_loadconfig(FILE *in, Config *cfg){
      MCX_ASSERT(fscanf(in,"%1023s", filename)==1);
      if(cfg->rootpath[0]){
 #ifdef WIN32
-         sprintf(comment,"%s\\%s",cfg->rootpath,filename);
+         snprintf(comment, MAX_PATH_LENGTH, "%s\\%s",cfg->rootpath,filename);
 #else
-         sprintf(comment,"%s/%s",cfg->rootpath,filename);
+         snprintf(comment, MAX_PATH_LENGTH, "%s/%s",cfg->rootpath,filename);
 #endif
          strncpy(filename,comment,MAX_FULL_PATH);
      }
