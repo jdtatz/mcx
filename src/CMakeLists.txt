@@ -110,6 +110,8 @@ if(SKBUILD)
     add_cython_target(cymcx pymcx.pyx PY3)
     add_library(pymcx MODULE ${cymcx} ${SRCS})
     python_extension_module(pymcx)
+    # Needed b/c scikit-build doesn't support standalone extension modules
+    file(WRITE "${CMAKE_INSTALL_PREFIX}/pymcx/__init__.py" "from .pymcx import *\n")
     # Needed for scikit-build
     install(TARGETS pymcx LIBRARY DESTINATION "pymcx")
 endif()

@@ -1,5 +1,6 @@
 from libc.stdio cimport FILE, stderr, fprintf
 from libc.setjmp cimport setjmp, jmp_buf
+from cpython.mem cimport PyMem_Malloc, PyMem_Free
 from openmp cimport omp_set_num_threads
 from cython.parallel cimport parallel, prange
 from cython cimport view
@@ -219,7 +220,7 @@ class MCXRunException(Exception):
 
 
 cdef class MCX:
-    cdef Config config
+    cdef Config *config
     cdef float[:, ::1] prop
     cdef float[:, ::1] detpos
     cdef unsigned int[::1, :, :] volume
@@ -234,7 +235,13 @@ cdef class MCX:
     cdef readonly object stdout
 
     def __cinit__(self):
-        mcx_initcfg(&self.config)
+        self.config = <Config*> PyMem_Malloc(sizeof(Config))
+        if not self.config:
+            raise MemoryError()
+        mcx_initcfg(self.config)
+
+    def __dealloc__(self):
+        PyMem_Free(self.config)
 
     def __init__(self):
         self.fluence = None
@@ -304,7 +311,7 @@ cdef class MCX:
         cdef int flag
         with _grab_fstream(sys.__stderr__) as hold_stderr:
             with _grab_fstream(sys.__stdout__) as hold_stdout:
-                flag = mcx_wrapped_run_simulation(&self.config)
+                flag = mcx_wrapped_run_simulation(self.config)
         if flag != 0:
             raise MCXRunException(hold_stdout.pop(), hold_stderr.pop(), flag)
         else:
